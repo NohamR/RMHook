@@ -110,6 +110,7 @@ If the config file doesn't exist, it will be created automatically with default 
 - Verify the storage path migration was completed
 
 ## Credits
+- **xovi-rmfakecloud**: [asivery/xovi-rmfakecloud](https://github.com/asivery/xovi-rmfakecloud) - Original hooking information
 - **tinyhook**: [Antibioticss/tinyhook](https://github.com/Antibioticss/tinyhook/) - Function hooking framework
 - **rmfakecloud**: [ddvk/rmfakecloud](https://github.com/ddvk/rmfakecloud) - Self-hosted reMarkable cloud
 - **optool**: [alexzielenski/optool](https://github.com/alexzielenski/optool) - Mach-O binary modification tool
