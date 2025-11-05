@@ -45,6 +45,12 @@ fi
 
 echo "[INFO] Executable name: $APP_NAME"
 
+# Change ownership to current user
+CURRENT_USER=$(whoami)
+CURRENT_GROUP=$(id -gn)
+echo "Changing ownership to $CURRENT_USER:$CURRENT_GROUP for $APP_PATH ..."
+sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$APP_PATH"
+
 EXECUTABLE_PATH="$APP_PATH/Contents/MacOS/$APP_NAME"
 if [ ! -f "$EXECUTABLE_PATH" ]; then
     echo "[ERROR] The specified executable ($EXECUTABLE_PATH) does not exist."
@@ -66,12 +72,6 @@ sudo codesign -f -s - --timestamp=none --all-architectures "$EXECUTABLE_PATH"
 sudo xattr -cr "$EXECUTABLE_PATH"
 
 echo "Signed successfully."
-
-# Change ownership to current user
-CURRENT_USER=$(whoami)
-CURRENT_GROUP=$(id -gn)
-echo "Changing ownership to $CURRENT_USER:$CURRENT_GROUP for $APP_PATH ..."
-sudo chown -R "$CURRENT_USER:$CURRENT_GROUP" "$APP_PATH"
 
 # Remove _MASReceipt if it exists
 RECEIPT_PATH="$APP_PATH/Contents/_MASReceipt"

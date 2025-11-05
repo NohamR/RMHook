@@ -11,6 +11,13 @@ RMHook hooks into the reMarkable Desktop app's network layer to redirect API cal
 - Network request interception and redirection
 - WebSocket connection patching
 
+## Compatibility
+
+**Tested and working on:**
+- reMarkable Desktop v3.23.0 (released 2025-11-05)
+
+![docs/latest.png](docs/latest.png)
+
 ## Installation and usage
 
 ### Important legal notice
@@ -66,6 +73,7 @@ mv ~/Library/Containers/com.remarkable.desktop/Data/Library/Application\ Support
 ### Step 4: Configure rmfakecloud server
 Quickly access the configuration file from the app's Help menu:
 ![help-config.png](docs/help-config.png)
+
 Edit the configuration file at:
 ```
 ~/Library/Preferences/rmfakecloud.config
