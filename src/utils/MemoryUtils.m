@@ -103,4 +103,37 @@
     }
 }
 
++ (BOOL)hookAddress:(NSString *)imageName
+      staticAddress:(uintptr_t)staticAddress
+       hookFunction:(void *)hookFunction
+   originalFunction:(void **)originalFunction
+          logPrefix:(NSString *)logPrefix {
+    
+    NSLogger(@"%@ Starting hook installation at static address: 0x%lx", logPrefix, staticAddress);
+    
+    int imageIndex = [self indexForImageWithName:imageName];
+    if (imageIndex < 0) {
+        NSLogger(@"%@ ERROR: Image %@ not found", logPrefix, imageName);
+        return NO;
+    }
+    
+    // Calculate ASLR slide
+    intptr_t slide = _dyld_get_image_vmaddr_slide(imageIndex);
+    NSLogger(@"%@ Image %@ ASLR slide: 0x%lx", logPrefix, imageName, slide);
+    
+    // Calculate actual runtime address
+    void *actualAddress = (void *)(staticAddress + slide);
+    NSLogger(@"%@ Calculated runtime address: %p (static: 0x%lx + slide: 0x%lx)", logPrefix, actualAddress, staticAddress, slide);
+    
+    int hookResult = tiny_hook(actualAddress, hookFunction, originalFunction);
+    
+    if (hookResult == 0) {
+        NSLogger(@"%@ Hook successfully installed at address %p", logPrefix, actualAddress);
+        return YES;
+    } else {
+        NSLogger(@"%@ ERROR: Failed to install hook at address %p (code: %d)", logPrefix, actualAddress, hookResult);
+        return NO;
+    }
+}
+
 @end

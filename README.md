@@ -37,6 +37,7 @@ Use the provided injection script:
 
 This script will:
 - Copy the dylib to the app bundle's Resources folder
+- Copy the `libzstd.1.dylib` dependency and fix library references
 - Inject the load command into the executable using `optool`
 - Remove the code signature and resign with ad-hoc signature
 - Remove the `_MASReceipt` folder
@@ -145,5 +146,24 @@ cd RMHook
 
 2. **Compile the dylib:**
 ```bash
-./scripts/build.sh
+./scripts/build.sh [mode]
+```
+
+### Build modes
+
+The build script supports different modes for various use cases:
+
+| Mode | Description |
+|------|-------------|
+| `rmfakecloud` | Redirect reMarkable cloud to rmfakecloud server (default) |
+| `qmldiff` | Qt resource data registration hooking (WIP) |
+| `dev` | Development/reverse engineering mode with all hooks |
+| `all` | Enable all modes |
+
+Examples:
+```bash
+./scripts/build.sh              # Build with rmfakecloud mode (default)
+./scripts/build.sh rmfakecloud  # Explicitly build rmfakecloud mode
+./scripts/build.sh dev          # Build with dev/reverse engineering hooks
+./scripts/build.sh all          # Build with all modes enabled
 ```

@@ -63,7 +63,27 @@ mkdir -p "$APP_PATH/Contents/Resources/"
 cp "$DYLIB" "$APP_PATH/Contents/Resources/"
 echo "[INFO] Copied $DYLIB to $APP_PATH/Contents/Resources/"
 
-optool install -c load -p "@executable_path/../Resources/$(basename "$DYLIB")" -t "$EXECUTABLE_PATH"
+# Use optool from the scripts folder
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Copy libzstd dependency and fix the reference in reMarkable.dylib
+LIBZSTD_PATH="$SCRIPT_DIR/../libs/libzstd.1.dylib"
+if [ -f "$LIBZSTD_PATH" ]; then
+    cp "$LIBZSTD_PATH" "$APP_PATH/Contents/Resources/"
+    echo "[INFO] Copied libzstd.1.dylib to $APP_PATH/Contents/Resources/"
+    
+    # Update the dylib reference to @executable_path/../Resources (handle multiple possible source paths)
+    DYLIB_IN_APP="$APP_PATH/Contents/Resources/$(basename "$DYLIB")"
+    install_name_tool -change "/usr/local/lib/libzstd.1.dylib" "@executable_path/../Resources/libzstd.1.dylib" "$DYLIB_IN_APP"
+    install_name_tool -change "/usr/local/opt/zstd/lib/libzstd.1.dylib" "@executable_path/../Resources/libzstd.1.dylib" "$DYLIB_IN_APP"
+    install_name_tool -change "/opt/homebrew/lib/libzstd.1.dylib" "@executable_path/../Resources/libzstd.1.dylib" "$DYLIB_IN_APP"
+    install_name_tool -change "/opt/homebrew/opt/zstd/lib/libzstd.1.dylib" "@executable_path/../Resources/libzstd.1.dylib" "$DYLIB_IN_APP"
+    echo "[INFO] Updated libzstd references in $(basename "$DYLIB")"
+else
+    echo "[WARNING] libzstd.1.dylib not found at $LIBZSTD_PATH - app may fail on systems without zstd"
+fi
+
+"$SCRIPT_DIR/optool" install -c load -p "@executable_path/../Resources/$(basename "$DYLIB")" -t "$EXECUTABLE_PATH"
 echo "[INFO] Injected $DYLIB into $EXECUTABLE_PATH"
 
 sudo codesign --remove-signature "$EXECUTABLE_PATH"

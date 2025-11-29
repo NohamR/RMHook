@@ -6,6 +6,14 @@ enable_language(OBJC OBJCXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+# Build mode options
+# - rmfakecloud: Redirect reMarkable cloud to rmfakecloud server (default)
+# - qmldiff: Qt resource data registration hooking (WIP)
+# - dev: Development/reverse engineering mode with all hooks
+option(BUILD_MODE_RMFAKECLOUD "Build with rmfakecloud support" ON)
+option(BUILD_MODE_QMLDIFF "Build with QML diff/resource hooking" OFF)
+option(BUILD_MODE_DEV "Build with dev/reverse engineering hooks" OFF)
+
 # Compiler settings for macOS
 set(CMAKE_MACOSX_RPATH 1)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
@@ -93,8 +101,24 @@ set_target_properties(reMarkable PROPERTIES
 
 add_definitions(-DQT_NO_VERSION_TAGGING)
 
+# Add build mode compile definitions
+if(BUILD_MODE_RMFAKECLOUD)
+    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_RMFAKECLOUD=1)
+    message(STATUS "Build mode: rmfakecloud (cloud redirection)")
+endif()
+
+if(BUILD_MODE_QMLDIFF)
+    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_QMLDIFF=1)
+    message(STATUS "Build mode: qmldiff (resource hooking)")
+endif()
+
+if(BUILD_MODE_DEV)
+    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_DEV=1)
+    message(STATUS "Build mode: dev (reverse engineering)")
+endif()
+
 target_link_libraries(reMarkable PRIVATE 
     ${LIBS}
     ${QT_LIB_TARGETS}
-    /opt/homebrew/Cellar/libzip/1.11.4/lib/intel/libzstd.1.5.7.dylib
+    ${PROJECT_ROOT_DIR}/libs/libzstd.1.dylib
 )
