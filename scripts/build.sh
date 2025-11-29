@@ -8,8 +8,8 @@
 
 PROJECT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
-# Qt path detection (adjust according to your installation)
-QT_PATH=${QT_PATH:-"$HOME/Qt/6.10.0"}
+# Qt path detection
+QT_PATH=${QT_PATH:-$(ls -d "$HOME/Qt/6."* 2>/dev/null | sort -V | tail -n1)}
 
 # Parse build mode argument
 BUILD_MODE=${1:-rmfakecloud}
