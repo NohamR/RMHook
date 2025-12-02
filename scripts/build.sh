@@ -14,6 +14,25 @@ QT_PATH=${QT_PATH:-$(ls -d "$HOME/Qt/6."* 2>/dev/null | sort -V | tail -n1)}
 # Parse build mode argument
 BUILD_MODE=${1:-rmfakecloud}
 
+# Determine final dylib name for the selected build mode
+case "$BUILD_MODE" in
+    rmfakecloud)
+        DYLIB_NAME="rmfakecloud.dylib"
+        ;;
+    qmldiff)
+        DYLIB_NAME="qmldiff.dylib"
+        ;;
+    dev)
+        DYLIB_NAME="dev.dylib"
+        ;;
+    all)
+        DYLIB_NAME="all.dylib"
+        ;;
+    *)
+        DYLIB_NAME="reMarkable.dylib"
+        ;;
+esac
+
 # Set CMake options based on build mode
 CMAKE_OPTIONS=""
 case "$BUILD_MODE" in
@@ -54,12 +73,23 @@ fi
 make reMarkable
 
 if [ $? -eq 0 ]; then
+    # Rename the produced dylib so each build mode has a distinct file name
+    DYLIB_DIR="$PROJECT_DIR/build/dylibs"
+    DEFAULT_DYLIB="$DYLIB_DIR/reMarkable.dylib"
+    TARGET_DYLIB="$DYLIB_DIR/$DYLIB_NAME"
+
+    if [ -f "$DEFAULT_DYLIB" ]; then
+        mv "$DEFAULT_DYLIB" "$TARGET_DYLIB"
+    else
+        echo "⚠️  Expected dylib not found at $DEFAULT_DYLIB"
+    fi
+
     echo ""
     echo "✅ Compilation successful!"
-    echo "📍 Dylib: $PROJECT_DIR/build/dylibs/reMarkable.dylib"
+    echo "📍 Dylib: $TARGET_DYLIB"
     echo ""
     echo "🚀 To inject into the reMarkable application:"
-    echo "   DYLD_INSERT_LIBRARIES=\"$PROJECT_DIR/build/dylibs/reMarkable.dylib\" /Applications/reMarkable.app/Contents/MacOS/reMarkable"
+    echo "   DYLD_INSERT_LIBRARIES=\"$TARGET_DYLIB\" /Applications/reMarkable.app/Contents/MacOS/reMarkable"
     echo ""
 else
     echo "❌ Compilation failed"

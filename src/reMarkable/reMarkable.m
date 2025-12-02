@@ -254,6 +254,12 @@ static ssize_t (*original_qIODevice_write)(
     const char *data,
     qint64 maxSize) = NULL;
 
+// Hook for function at 0x10015A130
+static int64_t (*original_function_at_0x10015A130)(int64_t a1, int64_t a2) = NULL;
+
+// Hook for function at 0x10015BC90
+static void (*original_function_at_0x10015BC90)(int64_t a1, int64_t a2) = NULL;
+
 // Hook for function at 0x10016D520
 static int64_t (*original_function_at_0x10016D520)(int64_t a1, int64_t *a2, unsigned int a3, int64_t a4) = NULL;
 
@@ -356,26 +362,47 @@ static inline bool shouldPatchURL(const QString &host) {
 #endif
 
 #ifdef BUILD_MODE_DEV
+    // // Hook function at address 0x1????
+    // [MemoryUtils hookAddress:@"reMarkable"
+    //            staticAddress:0x????
+    //             hookFunction:(void *)hooked_function_at_0x????
+    //         originalFunction:(void **)&original_function_at_0x????
+    //                logPrefix:@"[reMarkable]"];
+    
     NSLogger(@"[reMarkable] Build mode: dev/reverse engineering");
-    [MemoryUtils hookSymbol:@"QtCore"
-                    symbolName:@"__ZN9QIODevice5writeEPKcx"
-                  hookFunction:(void *)hooked_qIODevice_write
-              originalFunction:(void **)&original_qIODevice_write
-                     logPrefix:@"[reMarkable]"];
+    // [MemoryUtils hookSymbol:@"QtCore"
+    //                 symbolName:@"__ZN9QIODevice5writeEPKcx"
+    //               hookFunction:(void *)hooked_qIODevice_write
+    //           originalFunction:(void **)&original_qIODevice_write
+    //                  logPrefix:@"[reMarkable]"];
 
-    // Hook function at address 0x10016D520
-    [MemoryUtils hookAddress:@"reMarkable"
-               staticAddress:0x10016D520
-                hookFunction:(void *)hooked_function_at_0x10016D520
-            originalFunction:(void **)&original_function_at_0x10016D520
-                   logPrefix:@"[reMarkable]"];
+    // // Hook function at address 0x10015A130
+    // [MemoryUtils hookAddress:@"reMarkable"
+    //            staticAddress:0x10015A130
+    //             hookFunction:(void *)hooked_function_at_0x10015A130
+    //         originalFunction:(void **)&original_function_at_0x10015A130
+    //                logPrefix:@"[reMarkable]"];
 
-    // Hook function at address 0x1001B6EE0
-    [MemoryUtils hookAddress:@"reMarkable"
-               staticAddress:0x1001B6EE0
-                hookFunction:(void *)hooked_function_at_0x1001B6EE0
-            originalFunction:(void **)&original_function_at_0x1001B6EE0
-                   logPrefix:@"[reMarkable]"];
+    // // Hook function at address 0x10015BC90
+    // [MemoryUtils hookAddress:@"reMarkable"
+    //            staticAddress:0x10015BC90
+    //             hookFunction:(void *)hooked_function_at_0x10015BC90
+    //         originalFunction:(void **)&original_function_at_0x10015BC90
+    //                logPrefix:@"[reMarkable]"];
+
+    // // Hook function at address 0x10016D520
+    // [MemoryUtils hookAddress:@"reMarkable"
+    //            staticAddress:0x10016D520
+    //             hookFunction:(void *)hooked_function_at_0x10016D520
+    //         originalFunction:(void **)&original_function_at_0x10016D520
+    //                logPrefix:@"[reMarkable]"];
+
+    // // Hook function at address 0x1001B6EE0
+    // [MemoryUtils hookAddress:@"reMarkable"
+    //            staticAddress:0x1001B6EE0
+    //             hookFunction:(void *)hooked_function_at_0x1001B6EE0
+    //         originalFunction:(void **)&original_function_at_0x1001B6EE0
+    //                logPrefix:@"[reMarkable]"];
 #endif
 
     return YES;
@@ -437,6 +464,9 @@ extern "C" void hooked_qWebSocket_open(
 #endif // BUILD_MODE_RMFAKECLOUD
 
 #ifdef BUILD_MODE_QMLDIFF
+
+// See https://deepwiki.com/search/once-the-qrr-file-parsed-take_871f24a0-8636-4aee-bddf-7405b6e32584 for details on qmldiff replacement strategy
+
 extern "C" int hooked_qRegisterResourceData(
     int version,
     const unsigned char *tree,
@@ -499,6 +529,41 @@ extern "C" ssize_t hooked_qIODevice_write(
     }
     NSLogger(@"[reMarkable] WARNING: Original QIODevice::write not available, returning 0");
     return 0;
+}
+
+extern "C" int64_t hooked_function_at_0x10015A130(int64_t a1, int64_t a2) {
+    NSLogger(@"[reMarkable] Hook at 0x10015A130 called!");
+    NSLogger(@"[reMarkable]   a1 = 0x%llx", (unsigned long long)a1);
+    NSLogger(@"[reMarkable]   a2 = 0x%llx", (unsigned long long)a2);
+
+    logMemory("Memory at a1", (void *)a1, 64);
+    logMemory("Memory at a2", (void *)a2, 64);
+
+    if (original_function_at_0x10015A130) {
+        int64_t result = original_function_at_0x10015A130(a1, a2);
+        NSLogger(@"[reMarkable]   result = 0x%llx", (unsigned long long)result);
+        return result;
+    }
+
+    NSLogger(@"[reMarkable] WARNING: Original function at 0x10015A130 not available, returning 0");
+    return 0;
+}
+
+extern "C" void hooked_function_at_0x10015BC90(int64_t a1, int64_t a2) {
+    NSLogger(@"[reMarkable] Hook at 0x10015BC90 called!");
+    NSLogger(@"[reMarkable]   a1 = 0x%llx", (unsigned long long)a1);
+    NSLogger(@"[reMarkable]   a2 = 0x%llx", (unsigned long long)a2);
+
+    logMemory("Memory at a1", (void *)a1, 64);
+    logMemory("Memory at a2", (void *)a2, 64);
+
+    if (original_function_at_0x10015BC90) {
+        original_function_at_0x10015BC90(a1, a2);
+        NSLogger(@"[reMarkable]   original function returned (void)");
+        return;
+    }
+
+    NSLogger(@"[reMarkable] WARNING: Original function at 0x10015BC90 not available");
 }
 
 extern "C" int64_t hooked_function_at_0x10016D520(int64_t a1, int64_t *a2, unsigned int a3, int64_t a4) {
