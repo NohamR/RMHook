@@ -19,7 +19,7 @@ set(CMAKE_MACOSX_RPATH 1)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
 
 # Architecture: x86_64 only for reMarkable
-set(CMAKE_OSX_ARCHITECTURES "x86_64")
+set(CMAKE_OSX_ARCHITECTURES "x86_64" "arm64")
 
 # Project root directory
 set(PROJECT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -40,7 +40,8 @@ set(LIBS
     ${FOUNDATION_LIBRARY}
     ${COCOA_LIBRARY}
     ${SECURITY_LIBRARY}
-    ${PROJECT_ROOT_DIR}/libs/libtinyhook.a
+    ${PROJECT_ROOT_DIR}/libs/tinyhook.a # tinyhook for function hooking
+    ${PROJECT_ROOT_DIR}/libs/libzstd.a  # libzstd for compression/decompression
     z  # zlib for compression/decompression
 )
 
@@ -120,5 +121,4 @@ endif()
 target_link_libraries(reMarkable PRIVATE 
     ${LIBS}
     ${QT_LIB_TARGETS}
-    ${PROJECT_ROOT_DIR}/libs/libzstd.1.dylib
 )

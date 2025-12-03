@@ -14,7 +14,7 @@ RMHook hooks into the reMarkable Desktop app's network layer to redirect API cal
 ## Compatibility
 
 **Tested and working on:**
-- reMarkable Desktop v3.23.0 (released 2025-11-05)
+- reMarkable Desktop v3.24.0 (released 2025-12-03)
 
 <p align="center">
   <img src="docs/latest.png" width="40%" />
@@ -40,7 +40,6 @@ Use the provided injection script:
 
 This script will:
 - Copy the dylib to the app bundle's Resources folder
-- Copy the `libzstd.1.dylib` dependency and fix library references
 - Inject the load command into the executable using `optool`
 - Remove the code signature and resign with ad-hoc signature
 - Remove the `_MASReceipt` folder
@@ -122,10 +121,11 @@ If the config file doesn't exist, it will be created automatically with default 
 - Verify the storage path migration was completed
 
 ## Credits
-- **xovi-rmfakecloud**: [asivery/xovi-rmfakecloud](https://github.com/asivery/xovi-rmfakecloud) - Original hooking information
-- **tinyhook**: [Antibioticss/tinyhook](https://github.com/Antibioticss/tinyhook/) - Function hooking framework
-- **rmfakecloud**: [ddvk/rmfakecloud](https://github.com/ddvk/rmfakecloud) - Self-hosted reMarkable cloud
-- **optool**: [alexzielenski/optool](https://github.com/alexzielenski/optool) - Mach-O binary modification tool
+- xovi-rmfakecloud: [asivery/xovi-rmfakecloud](https://github.com/asivery/xovi-rmfakecloud) - Original hooking information
+- tinyhook: [Antibioticss/tinyhook](https://github.com/Antibioticss/tinyhook/) - Function hooking framework
+- rmfakecloud: [ddvk/rmfakecloud](https://github.com/ddvk/rmfakecloud) - Self-hosted reMarkable cloud
+- optool: [alexzielenski/optool](https://github.com/alexzielenski/optool) - Mach-O binary modification tool
+- zstd: [facebook/zstd](https://github.com/facebook/zstd) - Compression library
 
 ## License
 
