@@ -28,6 +28,8 @@ set(PROJECT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(
     ${PROJECT_ROOT_DIR}/src/core
     ${PROJECT_ROOT_DIR}/src/utils
+    ${PROJECT_ROOT_DIR}/src/reMarkable
+    ${PROJECT_ROOT_DIR}/libs/include
 )
 
 # Find required libraries
@@ -79,6 +81,7 @@ set(COMMON_SOURCES
 # reMarkable dylib
 set(REMARKABLE_SOURCES
     ${PROJECT_ROOT_DIR}/src/reMarkable/reMarkable.m
+    ${PROJECT_ROOT_DIR}/src/reMarkable/DevHooks.m
 )
 
 add_library(reMarkable SHARED 
