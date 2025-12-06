@@ -57,13 +57,13 @@ foreach(_qt_root ${_qt_candidate_roots})
     endif()
 endforeach()
 
-find_package(Qt6 COMPONENTS Core Network WebSockets QUIET)
+find_package(Qt6 COMPONENTS Core Network WebSockets Qml QUIET)
 if(Qt6_FOUND)
-    set(QT_LIB_TARGETS Qt6::Core Qt6::Network Qt6::WebSockets)
+    set(QT_LIB_TARGETS Qt6::Core Qt6::Network Qt6::WebSockets Qt6::Qml)
 else()
-    find_package(Qt5 COMPONENTS Core Network WebSockets QUIET)
+    find_package(Qt5 COMPONENTS Core Network WebSockets Qml QUIET)
     if(Qt5_FOUND)
-        set(QT_LIB_TARGETS Qt5::Core Qt5::Network Qt5::WebSockets)
+        set(QT_LIB_TARGETS Qt5::Core Qt5::Network Qt5::WebSockets Qt5::Qml)
     endif()
 endif()
 
@@ -105,7 +105,7 @@ set_target_properties(reMarkable PROPERTIES
 
 add_definitions(-DQT_NO_VERSION_TAGGING)
 
-# Add build mode compile definitions
+# Add build mode compile definitions and conditionally add sources
 if(BUILD_MODE_RMFAKECLOUD)
     target_compile_definitions(reMarkable PRIVATE BUILD_MODE_RMFAKECLOUD=1)
     message(STATUS "Build mode: rmfakecloud (cloud redirection)")
@@ -113,6 +113,14 @@ endif()
 
 if(BUILD_MODE_QMLREBUILD)
     target_compile_definitions(reMarkable PRIVATE BUILD_MODE_QMLREBUILD=1)
+    
+    # Enable Qt MOC for MessageBroker
+    set_target_properties(reMarkable PROPERTIES AUTOMOC ON)
+    
+    # Add MessageBroker source (needs MOC processing)
+    target_sources(reMarkable PRIVATE 
+        ${PROJECT_ROOT_DIR}/src/utils/MessageBroker.mm
+    )
     message(STATUS "Build mode: qmlrebuild (resource hooking)")
 endif()
 

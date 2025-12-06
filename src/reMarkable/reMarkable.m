@@ -7,6 +7,9 @@
 #ifdef BUILD_MODE_DEV
 #import "DevHooks.h"
 #endif
+#ifdef BUILD_MODE_QMLREBUILD
+#import "MessageBroker.h"
+#endif
 #import <objc/runtime.h>
 #import <Cocoa/Cocoa.h>
 #include <stdint.h>
@@ -302,11 +305,25 @@ static inline bool shouldPatchURL(const QString &host) {
 
 #ifdef BUILD_MODE_QMLREBUILD
     NSLogger(@"[reMarkable] Build mode: qmlrebuild");
+    
+    // Register MessageBroker QML type for dylib <-> QML communication
+    messagebroker::registerQmlType();
+    
+    // Register native callback to receive signals from QML
+    messagebroker::setNativeCallback([](const char *signal, const char *value) {
+        NSLogger(@"[reMarkable] Native callback received signal '%s' with value '%s'", signal, value);
+    });
+    
     [MemoryUtils hookSymbol:@"QtCore"
                         symbolName:@"__Z21qRegisterResourceDataiPKhS0_S0_"
                       hookFunction:(void *)hooked_qRegisterResourceData
                   originalFunction:(void **)&original_qRegisterResourceData
                          logPrefix:@"[reMarkable]"];
+
+    // Send a delayed broadcast to QML (after UI has loaded)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        messagebroker::broadcast("signalName", "Hello from dylib!");
+    });
 #endif
 
 #ifdef BUILD_MODE_DEV
