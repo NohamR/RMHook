@@ -3,7 +3,7 @@
 
 # Build modes:
 #   rmfakecloud - Redirect reMarkable cloud to rmfakecloud server (default)
-#   qmldiff     - Qt resource data registration hooking (WIP)
+#   qmlrebuild     - Qt resource data registration hooking
 #   dev         - Development/reverse engineering mode with all hooks
 
 PROJECT_DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -19,8 +19,8 @@ case "$BUILD_MODE" in
     rmfakecloud)
         DYLIB_NAME="rmfakecloud.dylib"
         ;;
-    qmldiff)
-        DYLIB_NAME="qmldiff.dylib"
+    qmlrebuild)
+        DYLIB_NAME="qmlrebuild.dylib"
         ;;
     dev)
         DYLIB_NAME="dev.dylib"
@@ -37,20 +37,20 @@ esac
 CMAKE_OPTIONS=""
 case "$BUILD_MODE" in
     rmfakecloud)
-        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=ON -DBUILD_MODE_QMLDIFF=OFF -DBUILD_MODE_DEV=OFF"
+        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=ON -DBUILD_MODE_QMLREBUILD=OFF -DBUILD_MODE_DEV=OFF"
         ;;
-    qmldiff)
-        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=OFF -DBUILD_MODE_QMLDIFF=ON -DBUILD_MODE_DEV=OFF"
+    qmlrebuild)
+        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=OFF -DBUILD_MODE_QMLREBUILD=ON -DBUILD_MODE_DEV=OFF"
         ;;
     dev)
-        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=OFF -DBUILD_MODE_QMLDIFF=OFF -DBUILD_MODE_DEV=ON"
+        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=OFF -DBUILD_MODE_QMLREBUILD=OFF -DBUILD_MODE_DEV=ON"
         ;;
     all)
-        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=ON -DBUILD_MODE_QMLDIFF=ON -DBUILD_MODE_DEV=ON"
+        CMAKE_OPTIONS="-DBUILD_MODE_RMFAKECLOUD=ON -DBUILD_MODE_QMLREBUILD=ON -DBUILD_MODE_DEV=ON"
         ;;
     *)
         echo "❌ Unknown build mode: $BUILD_MODE"
-        echo "Available modes: rmfakecloud (default), qmldiff, dev, all"
+        echo "Available modes: rmfakecloud (default), qmlrebuild, dev, all"
         exit 1
         ;;
 esac

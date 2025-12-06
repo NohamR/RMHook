@@ -36,7 +36,7 @@ static NSString *ReMarkableDumpRootDirectory(void) {
     return dumpDirectory;
 }
 
-#ifdef BUILD_MODE_QMLDIFF
+#ifdef BUILD_MODE_QMLREBUILD
 uint32_t readUInt32(uint8_t *addr, int offset) {
     return (uint32_t)(addr[offset + 0] << 24) |
            (uint32_t)(addr[offset + 1] << 16) |
@@ -554,4 +554,4 @@ void processNode(struct ResourceRoot *root, int node, const char *rootName) {
         // ReMarkableDumpResourceFile(root, node, rootName ? rootName : "", nameBuffer, fileFlag);
     }
 }
-#endif // BUILD_MODE_QMLDIFF
+#endif // BUILD_MODE_QMLREBUILD

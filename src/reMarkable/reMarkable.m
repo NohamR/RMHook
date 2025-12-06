@@ -244,7 +244,7 @@ static void (*original_qWebSocket_open)(
     const QNetworkRequest &request) = NULL;
 #endif
 
-#ifdef BUILD_MODE_QMLDIFF
+#ifdef BUILD_MODE_QMLREBUILD
 static int (*original_qRegisterResourceData)(
     int,
     const unsigned char *,
@@ -300,8 +300,8 @@ static inline bool shouldPatchURL(const QString &host) {
                          logPrefix:@"[reMarkable]"];
 #endif
 
-#ifdef BUILD_MODE_QMLDIFF
-    NSLogger(@"[reMarkable] Build mode: qmldiff");
+#ifdef BUILD_MODE_QMLREBUILD
+    NSLogger(@"[reMarkable] Build mode: qmlrebuild");
     [MemoryUtils hookSymbol:@"QtCore"
                         symbolName:@"__Z21qRegisterResourceDataiPKhS0_S0_"
                       hookFunction:(void *)hooked_qRegisterResourceData
@@ -427,9 +427,9 @@ extern "C" void hooked_qWebSocket_open(
 }
 #endif // BUILD_MODE_RMFAKECLOUD
 
-#ifdef BUILD_MODE_QMLDIFF
+#ifdef BUILD_MODE_QMLREBUILD
 
-// See https://deepwiki.com/search/once-the-qrr-file-parsed-take_871f24a0-8636-4aee-bddf-7405b6e32584 for details on qmldiff replacement strategy
+// See https://deepwiki.com/search/once-the-qrr-file-parsed-take_871f24a0-8636-4aee-bddf-7405b6e32584 for details on qmlrebuild replacement strategy
 
 extern "C" int hooked_qRegisterResourceData(
     int version,
@@ -528,6 +528,6 @@ extern "C" int hooked_qRegisterResourceData(
     pthread_mutex_unlock(&gResourceMutex);
     return status;
 }
-#endif // BUILD_MODE_QMLDIFF
+#endif // BUILD_MODE_QMLREBUILD
 
 @end

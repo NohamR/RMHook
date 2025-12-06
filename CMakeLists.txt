@@ -8,10 +8,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 # Build mode options
 # - rmfakecloud: Redirect reMarkable cloud to rmfakecloud server (default)
-# - qmldiff: Qt resource data registration hooking (WIP)
+# - qmlrebuild: Qt resource data registration hooking
 # - dev: Development/reverse engineering mode with all hooks
 option(BUILD_MODE_RMFAKECLOUD "Build with rmfakecloud support" ON)
-option(BUILD_MODE_QMLDIFF "Build with QML diff/resource hooking" OFF)
+option(BUILD_MODE_QMLREBUILD "Build with QML resource rebuilding" OFF)
 option(BUILD_MODE_DEV "Build with dev/reverse engineering hooks" OFF)
 
 # Compiler settings for macOS
@@ -111,9 +111,9 @@ if(BUILD_MODE_RMFAKECLOUD)
     message(STATUS "Build mode: rmfakecloud (cloud redirection)")
 endif()
 
-if(BUILD_MODE_QMLDIFF)
-    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_QMLDIFF=1)
-    message(STATUS "Build mode: qmldiff (resource hooking)")
+if(BUILD_MODE_QMLREBUILD)
+    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_QMLREBUILD=1)
+    message(STATUS "Build mode: qmlrebuild (resource hooking)")
 endif()
 
 if(BUILD_MODE_DEV)

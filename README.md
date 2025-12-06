@@ -162,11 +162,11 @@ The build script supports different modes for various use cases:
 | Mode | Description |
 |------|-------------|
 | `rmfakecloud` | Redirect reMarkable cloud to rmfakecloud server (default) |
-| `qmldiff` | Qt resource data registration hooking for QML replacement |
+| `qmlrebuild` | Qt resource data registration hooking for QML replacement |
 | `dev` | Development/reverse engineering mode with all hooks |
 | `all` | Enable all modes |
 
-**Note (qmldiff mode):** When using the `qmldiff` feature, you must clear the Qt QML cache before launching the app:
+**Note (qmlrebuild mode):** When using the `qmlrebuild` feature, you must clear the Qt QML cache before launching the app:
 ```bash
 rm -rf ~/Library/Caches/remarkable
 ```
