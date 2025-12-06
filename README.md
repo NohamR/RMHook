@@ -122,6 +122,9 @@ If the config file doesn't exist, it will be created automatically with default 
 
 ## Credits
 - xovi-rmfakecloud: [asivery/xovi-rmfakecloud](https://github.com/asivery/xovi-rmfakecloud) - Original hooking information
+- rm-xovi-extensions: [asivery/rm-xovi-extensions](https://github.com/asivery/rm-xovi-extensions) - Extension framework for reMarkable, used as reference for hooking Qt functions
+  - [qt-resource-rebuilder](https://github.com/asivery/rm-xovi-extensions/tree/master/qt-resource-rebuilder)
+  - [xovi-message-broker](https://github.com/asivery/rm-xovi-extensions/tree/master/xovi-message-broker)
 - tinyhook: [Antibioticss/tinyhook](https://github.com/Antibioticss/tinyhook/) - Function hooking framework
 - rmfakecloud: [ddvk/rmfakecloud](https://github.com/ddvk/rmfakecloud) - Self-hosted reMarkable cloud
 - optool: [alexzielenski/optool](https://github.com/alexzielenski/optool) - Mach-O binary modification tool
@@ -159,9 +162,15 @@ The build script supports different modes for various use cases:
 | Mode | Description |
 |------|-------------|
 | `rmfakecloud` | Redirect reMarkable cloud to rmfakecloud server (default) |
-| `qmldiff` | Qt resource data registration hooking (WIP) |
+| `qmldiff` | Qt resource data registration hooking for QML replacement |
 | `dev` | Development/reverse engineering mode with all hooks |
 | `all` | Enable all modes |
+
+**Note (qmldiff mode):** When using the `qmldiff` feature, you must clear the Qt QML cache before launching the app:
+```bash
+rm -rf ~/Library/Caches/remarkable
+```
+Qt caches compiled QML files, so changes to QML resources won't take effect until the cache is cleared.
 
 Examples:
 ```bash

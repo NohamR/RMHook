@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,6 +18,16 @@ struct ResourceRoot {
     size_t originalDataSize;
     size_t nameSize;
     int entriesAffected;
+};
+
+// Replacement entry for storing new data to be appended
+struct ReplacementEntry {
+    int node;
+    uint8_t *data;
+    size_t size;
+    size_t copyToOffset;
+    bool freeAfterwards;
+    struct ReplacementEntry *next;
 };
 
 #define TREE_ENTRY_SIZE 22
@@ -35,8 +46,14 @@ void statArchive(struct ResourceRoot *root, int node);
 void processNode(struct ResourceRoot *root, int node, const char *rootName);
 void ReMarkableDumpResourceFile(struct ResourceRoot *root, int node, const char *rootName, const char *fileName, uint16_t flags);
 
+// Replacement utilities
+void addReplacementEntry(struct ReplacementEntry *entry);
+struct ReplacementEntry *getReplacementEntries(void);
+void clearReplacementEntries(void);
+void replaceNode(struct ResourceRoot *root, int node, const char *fullPath, int treeOffset);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* ResourceUtils_h */
+#endif

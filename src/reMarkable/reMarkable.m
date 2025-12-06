@@ -442,33 +442,90 @@ extern "C" int hooked_qRegisterResourceData(
     }
 
     pthread_mutex_lock(&gResourceMutex);
-
     struct ResourceRoot resource = {
         .data = (uint8_t *)data,
         .name = (uint8_t *)name,
         .tree = (uint8_t *)tree,
+
         .treeSize = 0,
         .dataSize = 0,
         .originalDataSize = 0,
         .nameSize = 0,
+
         .entriesAffected = 0,
     };
 
+    NSLogger(@"[reMarkable] Registering Qt resource version %d tree:%p name:%p data:%p",
+             version, tree, name, data);
+
     statArchive(&resource, 0);
-    processNode(&resource, 0, "");
+    
+    // Make a writable copy of the tree (we need to modify offsets)
     resource.tree = (uint8_t *)malloc(resource.treeSize);
-    if (resource.tree) {
-        memcpy(resource.tree, tree, resource.treeSize);
+    if (!resource.tree) {
+        NSLogger(@"[reMarkable] Failed to allocate tree buffer");
+        pthread_mutex_unlock(&gResourceMutex);
+        return original_qRegisterResourceData(version, tree, name, data);
+    }
+    memcpy(resource.tree, tree, resource.treeSize);
+
+    // Process nodes and mark replacements
+    processNode(&resource, 0, "");
+    NSLogger(@"[reMarkable] Processing done! Entries affected: %d, dataSize: %zu, originalDataSize: %zu", 
+             resource.entriesAffected, resource.dataSize, resource.originalDataSize);
+
+    const unsigned char *finalTree = tree;
+    const unsigned char *finalData = data;
+    uint8_t *newDataBuffer = NULL;
+
+    if (resource.entriesAffected > 0) {
+        NSLogger(@"[reMarkable] Rebuilding data tables... (entries: %d)", resource.entriesAffected);
+        
+        // Allocate new data buffer (original size + space for replacements)
+        newDataBuffer = (uint8_t *)malloc(resource.dataSize);
+        if (!newDataBuffer) {
+            NSLogger(@"[reMarkable] Failed to allocate new data buffer (%zu bytes)", resource.dataSize);
+            free(resource.tree);
+            clearReplacementEntries();
+            pthread_mutex_unlock(&gResourceMutex);
+            return original_qRegisterResourceData(version, tree, name, data);
+        }
+        
+        // Copy original data
+        memcpy(newDataBuffer, data, resource.originalDataSize);
+        
+        // Copy replacement entries to their designated offsets
+        struct ReplacementEntry *entry = getReplacementEntries();
+        while (entry) {
+            // Write size prefix (4 bytes, big-endian)
+            writeUint32(newDataBuffer, (int)entry->copyToOffset, (uint32_t)entry->size);
+            // Write data after size prefix
+            memcpy(newDataBuffer + entry->copyToOffset + 4, entry->data, entry->size);
+            
+            NSLogger(@"[reMarkable] Copied replacement for node %d at offset %zu (%zu bytes)", 
+                     entry->node, entry->copyToOffset, entry->size);
+            
+            entry = entry->next;
+        }
+        
+        finalTree = resource.tree;
+        finalData = newDataBuffer;
+        
+        NSLogger(@"[reMarkable] Data buffer rebuilt: original %zu bytes -> new %zu bytes", 
+                 resource.originalDataSize, resource.dataSize);
     }
 
-    NSLogger(@"[reMarkable] Registering Qt resource version %d tree:%p (size:%zu) name:%p (size:%zu) data:%p (size:%zu)",
-             version, tree, resource.treeSize, name, resource.nameSize, data, resource.dataSize);
-
-    int status = original_qRegisterResourceData(version, tree, name, data);
-    pthread_mutex_unlock(&gResourceMutex);
-    if (resource.tree) {
+    int status = original_qRegisterResourceData(version, finalTree, name, finalData);
+    
+    // Cleanup
+    clearReplacementEntries();
+    if (resource.tree && resource.entriesAffected == 0) {
         free(resource.tree);
     }
+    // Note: We intentionally don't free newDataBuffer or resource.tree when entriesAffected > 0
+    // because Qt will use these buffers for the lifetime of the application
+    
+    pthread_mutex_unlock(&gResourceMutex);
     return status;
 }
 #endif // BUILD_MODE_QMLDIFF

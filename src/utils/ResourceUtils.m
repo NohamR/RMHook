@@ -344,6 +344,147 @@ void ReMarkableDumpResourceFile(struct ResourceRoot *root, int node, const char 
     }
 }
 
+// List of files to process with replaceNode
+static const char *kFilesToReplace[] = {
+    "/qml/client/dialogs/ExportDialog.qml",
+    "/qml/client/settings/GeneralSettings.qml",
+    NULL  // Sentinel to mark end of list
+};
+
+static bool shouldReplaceFile(const char *fullPath) {
+    if (!fullPath) return false;
+    for (int i = 0; kFilesToReplace[i] != NULL; i++) {
+        if (strcmp(fullPath, kFilesToReplace[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Get the path to replacement files directory
+static NSString *ReMarkableReplacementDirectory(void) {
+    static NSString *replacementDirectory = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSString *preferencesDir = ReMarkablePreferencesDirectory();
+        NSString *candidate = [preferencesDir stringByAppendingPathComponent:@"replacements"];
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        NSError *error = nil;
+        if (![fileManager fileExistsAtPath:candidate]) {
+            if (![fileManager createDirectoryAtPath:candidate withIntermediateDirectories:YES attributes:nil error:&error]) {
+                NSLogger(@"[reMarkable] Failed to create replacements directory %@: %@", candidate, error);
+            }
+        }
+        replacementDirectory = [candidate copy];
+    });
+    return replacementDirectory;
+}
+
+// Global linked list of replacement entries
+static struct ReplacementEntry *g_replacementEntries = NULL;
+
+void addReplacementEntry(struct ReplacementEntry *entry) {
+    entry->next = g_replacementEntries;
+    g_replacementEntries = entry;
+}
+
+struct ReplacementEntry *getReplacementEntries(void) {
+    return g_replacementEntries;
+}
+
+void clearReplacementEntries(void) {
+    struct ReplacementEntry *current = g_replacementEntries;
+    while (current) {
+        struct ReplacementEntry *next = current->next;
+        if (current->freeAfterwards && current->data) {
+            free(current->data);
+        }
+        free(current);
+        current = next;
+    }
+    g_replacementEntries = NULL;
+}
+
+void replaceNode(struct ResourceRoot *root, int node, const char *fullPath, int treeOffset) {
+    NSLogger(@"[reMarkable] replaceNode called for: %s", fullPath);
+    
+    if (!root || !root->tree || !fullPath) {
+        NSLogger(@"[reMarkable] replaceNode: invalid parameters");
+        return;
+    }
+    
+    // Build path to replacement file on disk
+    NSString *replacementDir = ReMarkableReplacementDirectory();
+    if (![replacementDir length]) {
+        NSLogger(@"[reMarkable] replaceNode: no replacement directory");
+        return;
+    }
+    
+    NSString *relativePath = [NSString stringWithUTF8String:fullPath];
+    if ([relativePath hasPrefix:@"/"]) {
+        relativePath = [relativePath substringFromIndex:1];
+    }
+    
+    NSString *replacementFilePath = [replacementDir stringByAppendingPathComponent:relativePath];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    if (![fileManager fileExistsAtPath:replacementFilePath]) {
+        NSLogger(@"[reMarkable] replaceNode: replacement file not found at %@", replacementFilePath);
+        return;
+    }
+    
+    // Read the replacement file
+    NSError *readError = nil;
+    NSData *replacementData = [NSData dataWithContentsOfFile:replacementFilePath options:0 error:&readError];
+    if (!replacementData || readError) {
+        NSLogger(@"[reMarkable] replaceNode: failed to read replacement file %@: %@", replacementFilePath, readError);
+        return;
+    }
+    
+    size_t dataSize = [replacementData length];
+    NSLogger(@"[reMarkable] replaceNode: loaded replacement file %@ (%zu bytes)", replacementFilePath, dataSize);
+    
+    // Allocate and copy the replacement data
+    uint8_t *newData = (uint8_t *)malloc(dataSize);
+    if (!newData) {
+        NSLogger(@"[reMarkable] replaceNode: failed to allocate %zu bytes", dataSize);
+        return;
+    }
+    memcpy(newData, [replacementData bytes], dataSize);
+    
+    // Create a replacement entry
+    struct ReplacementEntry *entry = (struct ReplacementEntry *)malloc(sizeof(struct ReplacementEntry));
+    if (!entry) {
+        NSLogger(@"[reMarkable] replaceNode: failed to allocate replacement entry");
+        free(newData);
+        return;
+    }
+    
+    entry->node = node;
+    entry->data = newData;
+    entry->size = dataSize;
+    entry->freeAfterwards = true;
+    entry->copyToOffset = root->dataSize;  // Will be appended at the end of data
+    entry->next = NULL;
+    
+    // Update the tree entry:
+    writeUint16(root->tree, treeOffset - 2, 0);  // Set flag to raw (uncompressed)
+    writeUint32(root->tree, treeOffset + 4, (uint32_t)entry->copyToOffset);  // Update data offset
+    
+    NSLogger(@"[reMarkable] replaceNode: updated tree - flags at offset %d, dataOffset at offset %d -> %zu", 
+             treeOffset - 2, treeOffset + 4, entry->copyToOffset);
+    
+    // Update dataSize to account for the new data (size prefix + data)
+    root->dataSize += entry->size + 4;
+    root->entriesAffected++;
+    
+    // Add to replacement entries list
+    addReplacementEntry(entry);
+    
+    NSLogger(@"[reMarkable] replaceNode: marked for replacement - %s (new offset: %zu, size: %zu)", 
+             fullPath, entry->copyToOffset, entry->size);
+}
+
 void processNode(struct ResourceRoot *root, int node, const char *rootName) {
     int offset = findOffset(node) + 4;
     uint16_t flags = readUInt16(root->tree, offset);
@@ -375,9 +516,42 @@ void processNode(struct ResourceRoot *root, int node, const char *rootName) {
 
         free(tempRoot);
     } else {
-        NSLogger(@"[reMarkable] Processing node %d: %s%s", (int)node, rootName ? rootName : "", nameBuffer);
-        uint16_t fileFlags = readUInt16(root->tree, offset - 2);
-        ReMarkableDumpResourceFile(root, node, rootName ? rootName : "", nameBuffer, fileFlags);
+        uint16_t fileFlag = readUInt16(root->tree, offset - 2);
+        const char *type;
+        if (fileFlag == 1) {
+            type = "zlib";
+        } else if (fileFlag == 4) {
+            type = "zstd";
+        } else if (fileFlag == 0) {
+            type = "raw";
+        } else {
+            type = "unknown";
+        }
+        
+        // Build full path: rootName + nameBuffer
+        const size_t rootLen = rootName ? strlen(rootName) : 0;
+        const size_t nameLen = strlen(nameBuffer);
+        char *fullPath = (char *)malloc(rootLen + nameLen + 1);
+        if (fullPath) {
+            if (rootLen > 0) {
+                memcpy(fullPath, rootName, rootLen);
+            }
+            memcpy(fullPath + rootLen, nameBuffer, nameLen);
+            fullPath[rootLen + nameLen] = '\0';
+            
+            NSLogger(@"[reMarkable] Processing node %d: %s (type: %s)", (int)node, fullPath, type);
+            
+            // Check if this file should be replaced
+            if (shouldReplaceFile(fullPath)) {
+                replaceNode(root, node, fullPath, offset);
+            }
+            
+            free(fullPath);
+        } else {
+            NSLogger(@"[reMarkable] Processing node %d: %s%s (type: %s)", (int)node, rootName ? rootName : "", nameBuffer, type);
+        }
+        
+        // ReMarkableDumpResourceFile(root, node, rootName ? rootName : "", nameBuffer, fileFlag);
     }
 }
 #endif // BUILD_MODE_QMLDIFF
