@@ -348,6 +348,8 @@ void ReMarkableDumpResourceFile(struct ResourceRoot *root, int node, const char 
 static const char *kFilesToReplace[] = {
     "/qml/client/dialogs/ExportDialog.qml",
     "/qml/client/settings/GeneralSettings.qml",
+    "/qml/client/dialogs/ExportUtils.js",
+    "/qml/client/desktop/FileImportDialog.qml",
     NULL  // Sentinel to mark end of list
 };
 

@@ -114,13 +114,24 @@ endif()
 if(BUILD_MODE_QMLREBUILD)
     target_compile_definitions(reMarkable PRIVATE BUILD_MODE_QMLREBUILD=1)
     
-    # Enable Qt MOC for MessageBroker
+    # Enable Qt MOC for MessageBroker (HttpServer is pure Obj-C/Foundation, no MOC needed)
     set_target_properties(reMarkable PROPERTIES AUTOMOC ON)
     
-    # Add MessageBroker source (needs MOC processing)
+    # Add MessageBroker (needs MOC) and HttpServer (native macOS)
     target_sources(reMarkable PRIVATE 
         ${PROJECT_ROOT_DIR}/src/utils/MessageBroker.mm
+        ${PROJECT_ROOT_DIR}/src/utils/HttpServer.mm
     )
+    
+    find_package(Qt6 COMPONENTS Qml QUIET)
+    if(Qt6Qml_FOUND)
+        target_link_libraries(reMarkable PRIVATE Qt6::Qml)
+    else()
+        find_package(Qt5 COMPONENTS Qml QUIET)
+        if(Qt5Qml_FOUND)
+            target_link_libraries(reMarkable PRIVATE Qt5::Qml)
+        endif()
+    endif()
     message(STATUS "Build mode: qmlrebuild (resource hooking)")
 endif()
 

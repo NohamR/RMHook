@@ -9,6 +9,7 @@
 #endif
 #ifdef BUILD_MODE_QMLREBUILD
 #import "MessageBroker.h"
+#import "HttpServer.h"
 #endif
 #import <objc/runtime.h>
 #import <Cocoa/Cocoa.h>
@@ -313,6 +314,13 @@ static inline bool shouldPatchURL(const QString &host) {
     messagebroker::setNativeCallback([](const char *signal, const char *value) {
         NSLogger(@"[reMarkable] Native callback received signal '%s' with value '%s'", signal, value);
     });
+    
+    // Start HTTP server for export requests
+    if (httpserver::start(8080)) {
+        NSLogger(@"[reMarkable] HTTP server started on http://localhost:8080");
+    } else {
+        NSLogger(@"[reMarkable] Failed to start HTTP server");
+    }
     
     [MemoryUtils hookSymbol:@"QtCore"
                         symbolName:@"__Z21qRegisterResourceDataiPKhS0_S0_"
