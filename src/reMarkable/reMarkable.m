@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dispatch/dispatch.h>
+#include <string>
 
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkRequest>
@@ -245,6 +246,17 @@ static QNetworkReply *(*original_qNetworkAccessManager_createRequest)(
 static void (*original_qWebSocket_open)(
     QWebSocket *self,
     const QNetworkRequest &request) = NULL;
+
+typedef void* MQTTAsync;
+typedef void* MQTTAsync_createOptions;
+
+static int (*original_MQTTAsync_createWithOptions)(
+    MQTTAsync *handle,
+    const char *serverURI,
+    const char *clientId,
+    int persistence_type,
+    void *persistence_context,
+    MQTTAsync_createOptions *options) = NULL;
 #endif
 
 #ifdef BUILD_MODE_QMLREBUILD
@@ -300,6 +312,12 @@ static inline bool shouldPatchURL(const QString &host) {
                         symbolName:@"__ZN10QWebSocket4openERK15QNetworkRequest"
                       hookFunction:(void *)hooked_qWebSocket_open
                   originalFunction:(void **)&original_qWebSocket_open
+                         logPrefix:@"[reMarkable]"];
+
+    [MemoryUtils hookSymbol:@"libpaho-mqtt3as.1.dylib"
+                        symbolName:@"_MQTTAsync_createWithOptions"
+                      hookFunction:(void *)hooked_MQTTAsync_createWithOptions
+                  originalFunction:(void **)&original_MQTTAsync_createWithOptions
                          logPrefix:@"[reMarkable]"];
 #endif
 
@@ -441,6 +459,77 @@ extern "C" void hooked_qWebSocket_open(
     }
 
     original_qWebSocket_open(self, req);
+}
+
+// Patch a paho URI: "ssl://host.remarkable.com:port" -> "ssl://proxy:port"
+// Returns patched string, or empty if no patch needed.
+static std::string PatchMqttUri(const char* uri)
+{
+    if (!uri) return {};
+    const std::string original(uri);
+
+    size_t schemeEnd = original.find("://");
+    size_t hostStart = (schemeEnd != std::string::npos) ? schemeEnd + 3 : 0;
+    size_t hostEnd   = original.find_first_of(":/", hostStart);
+    if (hostEnd == std::string::npos) hostEnd = original.size();
+
+    const std::string origHost = original.substr(hostStart, hostEnd - hostStart);
+
+    // Match any *.remarkable.com or *.remarkable.engineering host
+    static const char* kSuffixes[] = {
+        ".remarkable.com",
+        ".remarkable.engineering",
+        nullptr
+    };
+    bool shouldPatch = false;
+    for (int i = 0; kSuffixes[i]; ++i)
+    {
+        const std::string suffix(kSuffixes[i]);
+        if (origHost.size() >= suffix.size() &&
+            origHost.compare(origHost.size() - suffix.size(),
+                             suffix.size(), suffix) == 0)
+        {
+            shouldPatch = true;
+            break;
+        }
+    }
+    if (!shouldPatch) return {};
+
+    std::string patched = original;
+    std::string proxyHost = [gConfiguredHost UTF8String];
+    patched.replace(hostStart, hostEnd - hostStart, proxyHost);
+
+    // Fix port
+    size_t colonPos = patched.find(':', hostStart + proxyHost.size());
+    if (colonPos != std::string::npos)
+    {
+        size_t numEnd = patched.find_first_not_of("0123456789", colonPos + 1);
+        if (numEnd == std::string::npos) numEnd = patched.size();
+        patched.replace(colonPos + 1, numEnd - colonPos - 1,
+                        std::to_string([gConfiguredPort intValue]));
+    }
+    return patched;
+}
+
+extern "C" int hooked_MQTTAsync_createWithOptions(
+    MQTTAsync *handle,
+    const char *serverURI,
+    const char *clientId,
+    int persistence_type,
+    void *persistence_context,
+    MQTTAsync_createOptions *options)
+{
+    if (!original_MQTTAsync_createWithOptions) {
+        return -1; // error code for MQTTAsync_create failure
+    }
+
+    std::string patchedUri = PatchMqttUri(serverURI);
+    if (!patchedUri.empty()) {
+        NSLogger(@"[reMarkable] Patching MQTT URI from %s to %s", serverURI, patchedUri.c_str());
+        return original_MQTTAsync_createWithOptions(handle, patchedUri.c_str(), clientId, persistence_type, persistence_context, options);
+    }
+
+    return original_MQTTAsync_createWithOptions(handle, serverURI, clientId, persistence_type, persistence_context, options);
 }
 #endif // BUILD_MODE_RMFAKECLOUD
 
