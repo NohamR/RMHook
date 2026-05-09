@@ -10,6 +10,7 @@ RMHook hooks into the reMarkable Desktop app's network layer to redirect API cal
 
 - Network request interception and redirection
 - WebSocket connection patching
+- MQTT URI modification for screen sharing features
 
 ## Compatibility
 
