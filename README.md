@@ -6,6 +6,10 @@ A dynamic library injection tool for the reMarkable Desktop macOS application, e
 
 RMHook hooks into the reMarkable Desktop app's network layer to redirect API calls from reMarkable's official cloud services to your own [rmfakecloud](https://github.com/ddvk/rmfakecloud) server. This allows you to maintain full control over your documents and data.
 
+### Windows Port
+
+Looking for a Windows version? Check out **[RMHook-Win](https://github.com/NohamR/RMHook-Win)**: A Windows port of RMHook for the reMarkable Desktop application.
+
 ## Features
 
 - Network request interception and redirection
