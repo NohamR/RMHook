@@ -104,14 +104,6 @@ Example configuration:
 
 #### Step 5: Launch the patched app :p
 
-## How it works
-RMHook uses [tinyhook](https://github.com/Antibioticss/tinyhook/) to hook into Qt framework functions at runtime:
-1. **QNetworkAccessManager::createRequest** - Intercepts HTTP/HTTPS requests
-2. **QWebSocket::open** - Patches WebSocket connections
-3. **MQTTAsync_createWithOptions** - Modifies MQTT URIs for screen sharing features
-
-When the app attempts to connect to reMarkable's servers (e.g., `internal.cloud.remarkable.com`), the hooks redirect these requests to your configured host and port.
-
 ## Configuration
 
 The config file (`~/Library/Preferences/rmfakecloud.config`) supports the following keys:
@@ -132,6 +124,14 @@ If the config file doesn't exist, it will be created automatically with default 
 ### Document sync issues
 - Ensure your rmfakecloud server is running and accessible
 - Verify the storage path migration was completed
+
+## How it works
+RMHook uses [tinyhook](https://github.com/Antibioticss/tinyhook/) to hook into Qt framework functions at runtime:
+1. **QNetworkAccessManager::createRequest** - Intercepts HTTP/HTTPS requests
+2. **QWebSocket::open** - Patches WebSocket connections
+3. **MQTTAsync_createWithOptions** - Modifies MQTT URIs for screen sharing features
+
+When the app attempts to connect to reMarkable's servers (e.g., `internal.cloud.remarkable.com`), the hooks redirect these requests to your configured host and port.
 
 ## Credits
 - xovi-rmfakecloud: [asivery/xovi-rmfakecloud](https://github.com/asivery/xovi-rmfakecloud) - Original hooking information
