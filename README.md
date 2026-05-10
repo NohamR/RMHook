@@ -28,15 +28,22 @@ Looking for a Windows version? Check out **[RMHook-Win](https://github.com/Noham
 
 ## Installation and usage
 
-### Important legal notice
-
 ⚠️ **For legal reasons, this repository does not include a pre-patched reMarkable app.** However, the latest compiled dylib is available in the [Releases](https://github.com/NohamR/RMHook/releases/latest) section.
 
-### Step 1: Prepare the reMarkable app
+### Auto installation
+
+Run in a terminal:
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/NohamR/RMHook/refs/heads/main/scripts/auto-install.sh)
+```
+
+### Manual installation
+
+#### Step 1: Prepare the reMarkable app
 
 Uses the reMarkable Desktop app from your Applications folder or download it fresh from the [Mac App Store](https://apps.apple.com/app/remarkable-desktop/id1276493162).
 
-### Step 2: Inject the dylib
+#### Step 2: Inject the dylib
 
 Use the provided injection script:
 ```bash
@@ -50,9 +57,9 @@ This script will:
 - Remove the `_MASReceipt` folder
 - Fix file ownership
 
-### Step 3: Handle document storage
+#### Step 3: Handle document storage
 
-#### Important path changes
+##### Important path changes
 
 The original Mac App Store version stores data in sandboxed locations:
 **Original sandboxed paths:**
@@ -63,7 +70,7 @@ The original Mac App Store version stores data in sandboxed locations:
 - Config: `~/Library/Preferences/rmfakecloud.config`
 - Documents: `~/Library/Application Support/remarkable`
 
-#### Migration options
+##### Migration options
 
 **Option 1: Create a symbolic link** (recommended)
 ```bash
@@ -78,7 +85,7 @@ mv ~/Library/Containers/com.remarkable.desktop/Data/Library/Application\ Support
    ~/Library/Application\ Support/remarkable
 ```
 
-### Step 4: Configure rmfakecloud server
+#### Step 4: Configure rmfakecloud server
 Quickly access the configuration file from the app's Help menu:
 ![help-config.png](docs/help-config.png)
 
@@ -95,12 +102,13 @@ Example configuration:
 }
 ```
 
-### Step 5: Launch the patched app :p
+#### Step 5: Launch the patched app :p
 
 ## How it works
 RMHook uses [tinyhook](https://github.com/Antibioticss/tinyhook/) to hook into Qt framework functions at runtime:
 1. **QNetworkAccessManager::createRequest** - Intercepts HTTP/HTTPS requests
 2. **QWebSocket::open** - Patches WebSocket connections
+3. **MQTTAsync_createWithOptions** - Modifies MQTT URIs for screen sharing features
 
 When the app attempts to connect to reMarkable's servers (e.g., `internal.cloud.remarkable.com`), the hooks redirect these requests to your configured host and port.
 
