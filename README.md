@@ -6,9 +6,11 @@ A dynamic library injection tool for the reMarkable Desktop macOS application, e
 
 RMHook hooks into the reMarkable Desktop app's network layer to redirect API calls from reMarkable's official cloud services to your own [rmfakecloud](https://github.com/ddvk/rmfakecloud) server. This allows you to maintain full control over your documents and data.
 
-### Windows Port
+## Other platforms
 
-Looking for a Windows version? Check out **[RMHook-Win](https://github.com/NohamR/RMHook-Win)**: A Windows port of RMHook for the reMarkable Desktop application.
+- **[RMHook-Win](https://github.com/NohamR/RMHook-Win)**: Windows Desktop
+- **[RMHook-iOS](https://github.com/NohamR/RMHook-iOS)**: iOS
+- **[RMHook-Android](https://github.com/NohamR/RMHook-Android)**: Android
 
 ## Features
 
@@ -114,47 +116,6 @@ The config file (`~/Library/Preferences/rmfakecloud.config`) supports the follow
 
 If the config file doesn't exist, it will be created automatically with default values on first launch.
 
-## Troubleshooting
-
-### App won't launch
-- Ensure the code signature was properly applied
-- Check that `xattr -cr` was run to clear quarantine attributes
-- Verify the dylib is in `Contents/Resources/` folder
-
-### Document sync issues
-- Ensure your rmfakecloud server is running and accessible
-- Verify the storage path migration was completed
-
-## How it works
-RMHook uses [tinyhook](https://github.com/Antibioticss/tinyhook/) to hook into Qt framework functions at runtime:
-1. **QNetworkAccessManager::createRequest** - Intercepts HTTP/HTTPS requests
-2. **QWebSocket::open** - Patches WebSocket connections
-3. **MQTTAsync_createWithOptions** - Modifies MQTT URIs for screen sharing features
-
-When the app attempts to connect to reMarkable's servers (e.g., `internal.cloud.remarkable.com`), the hooks redirect these requests to your configured host and port.
-
-## Credits
-- xovi-rmfakecloud: [asivery/xovi-rmfakecloud](https://github.com/asivery/xovi-rmfakecloud) - Original hooking information
-- rm-xovi-extensions: [asivery/rm-xovi-extensions](https://github.com/asivery/rm-xovi-extensions) - Extension framework for reMarkable, used as reference for hooking Qt functions
-  - [qt-resource-rebuilder](https://github.com/asivery/rm-xovi-extensions/tree/master/qt-resource-rebuilder)
-  - [xovi-message-broker](https://github.com/asivery/rm-xovi-extensions/tree/master/xovi-message-broker)
-- tinyhook: [Antibioticss/tinyhook](https://github.com/Antibioticss/tinyhook/) - Function hooking framework
-- rmfakecloud: [ddvk/rmfakecloud](https://github.com/ddvk/rmfakecloud) - Self-hosted reMarkable cloud
-- optool: [alexzielenski/optool](https://github.com/alexzielenski/optool) - Mach-O binary modification tool
-- zstd: [facebook/zstd](https://github.com/facebook/zstd) - Compression library
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Disclaimer
-
-This project is not affiliated with, endorsed by, or sponsored by reMarkable AS. Use at your own risk. This tool modifies the reMarkable Desktop application and may violate the application's terms of service.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
 ## Building
 
 1. **Clone the repository:**
@@ -192,3 +153,52 @@ Examples:
 ./scripts/build.sh dev          # Build with dev/reverse engineering hooks
 ./scripts/build.sh all          # Build with all modes enabled
 ```
+
+## Debugging
+
+You can stream the macOS console logs to see output from the hooks:
+```bash
+log stream --predicate 'process == "reMarkable"' --level debug
+```
+
+## How it works
+
+RMHook uses [tinyhook](https://github.com/Antibioticss/tinyhook/) to hook into Qt framework functions at runtime:
+1. **QNetworkAccessManager::createRequest** - Intercepts HTTP/HTTPS requests
+2. **QWebSocket::open** - Patches WebSocket connections
+3. **MQTTAsync_createWithOptions** - Modifies MQTT URIs for screen sharing features
+
+When the app attempts to connect to reMarkable's servers (e.g., `internal.cloud.remarkable.com`), the hooks redirect these requests to your configured host and port.
+
+## Troubleshooting
+
+### App won't launch
+- Ensure the code signature was properly applied
+- Check that `xattr -cr` was run to clear quarantine attributes
+- Verify the dylib is in `Contents/Resources/` folder
+
+### Document sync issues
+- Ensure your rmfakecloud server is running and accessible
+- Verify the storage path migration was completed
+
+## Credits
+- xovi-rmfakecloud: [asivery/xovi-rmfakecloud](https://github.com/asivery/xovi-rmfakecloud) - Original hooking information
+- rm-xovi-extensions: [asivery/rm-xovi-extensions](https://github.com/asivery/rm-xovi-extensions) - Extension framework for reMarkable, used as reference for hooking Qt functions
+  - [qt-resource-rebuilder](https://github.com/asivery/rm-xovi-extensions/tree/master/qt-resource-rebuilder)
+  - [xovi-message-broker](https://github.com/asivery/rm-xovi-extensions/tree/master/xovi-message-broker)
+- tinyhook: [Antibioticss/tinyhook](https://github.com/Antibioticss/tinyhook/) - Function hooking framework
+- rmfakecloud: [ddvk/rmfakecloud](https://github.com/ddvk/rmfakecloud) - Self-hosted reMarkable cloud
+- optool: [alexzielenski/optool](https://github.com/alexzielenski/optool) - Mach-O binary modification tool
+- zstd: [facebook/zstd](https://github.com/facebook/zstd) - Compression library
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Disclaimer
+
+This project is not affiliated with, endorsed by, or sponsored by reMarkable AS. Use at your own risk. This tool modifies the reMarkable Desktop application and may violate the application's terms of service.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
