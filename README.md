@@ -19,7 +19,7 @@ Looking for a Windows version? Check out **[RMHook-Win](https://github.com/Noham
 ## Compatibility
 
 **Tested and working on:**
-- reMarkable Desktop v3.28 (released 2026-08-20)
+- reMarkable Desktop v3.28.1 (released 2026-08-24)
 
 <p align="center">
   <img src="docs/latest.png" width="45%" />
