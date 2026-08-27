@@ -28,7 +28,7 @@ set(PROJECT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(
     ${PROJECT_ROOT_DIR}/src/core
     ${PROJECT_ROOT_DIR}/src/utils
-    ${PROJECT_ROOT_DIR}/src/reMarkable
+    ${PROJECT_ROOT_DIR}/src/RMHook
     ${PROJECT_ROOT_DIR}/libs/include
 )
 
@@ -49,7 +49,7 @@ set(LIBS
 
 # Locate Qt libraries
 set(QT_LIB_TARGETS "")
-set(_qt_candidate_roots "$ENV{HOME}/Qt/6.10.0")
+set(_qt_candidate_roots "$ENV{HOME}/Qt/6.10.3/macos")
 
 foreach(_qt_root ${_qt_candidate_roots})
     if(_qt_root AND EXISTS "${_qt_root}")
@@ -78,27 +78,29 @@ set(COMMON_SOURCES
     ${PROJECT_ROOT_DIR}/src/utils/ResourceUtils.m
 )
 
-# reMarkable dylib
-set(REMARKABLE_SOURCES
-    ${PROJECT_ROOT_DIR}/src/reMarkable/reMarkable.m
-    ${PROJECT_ROOT_DIR}/src/reMarkable/DevHooks.m
+# RMHook dylib
+set(RMHOOK_SOURCES
+    ${PROJECT_ROOT_DIR}/src/RMHook/RMHook.m
+    ${PROJECT_ROOT_DIR}/src/RMHook/Config.m
+    ${PROJECT_ROOT_DIR}/src/RMHook/SSLConfig.m
+    ${PROJECT_ROOT_DIR}/src/RMHook/DevHooks.m
 )
 
-add_library(reMarkable SHARED 
+add_library(RMHook SHARED 
     ${COMMON_SOURCES}
-    ${REMARKABLE_SOURCES}
+    ${RMHOOK_SOURCES}
 )
 
 # Set source files as Objective-C++
 set_source_files_properties(
-    ${REMARKABLE_SOURCES}
+    ${RMHOOK_SOURCES}
     PROPERTIES LANGUAGE OBJCXX
 )
 
-set_target_properties(reMarkable PROPERTIES
+set_target_properties(RMHook PROPERTIES
     PREFIX ""
     SUFFIX ".dylib"
-    OUTPUT_NAME "reMarkable"
+    OUTPUT_NAME "RMHook"
     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_ROOT_DIR}/build/dylibs"
     MACOSX_RPATH ON
 )
@@ -107,29 +109,29 @@ add_definitions(-DQT_NO_VERSION_TAGGING)
 
 # Add build mode compile definitions and conditionally add sources
 if(BUILD_MODE_RMFAKECLOUD)
-    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_RMFAKECLOUD=1)
+    target_compile_definitions(RMHook PRIVATE BUILD_MODE_RMFAKECLOUD=1)
     message(STATUS "Build mode: rmfakecloud (cloud redirection)")
 endif()
 
 if(BUILD_MODE_QMLREBUILD)
-    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_QMLREBUILD=1)
+    target_compile_definitions(RMHook PRIVATE BUILD_MODE_QMLREBUILD=1)
     
     # Enable Qt MOC for MessageBroker
-    set_target_properties(reMarkable PROPERTIES AUTOMOC ON)
+    set_target_properties(RMHook PROPERTIES AUTOMOC ON)
     
     # Add MessageBroker source (needs MOC processing)
-    target_sources(reMarkable PRIVATE 
+    target_sources(RMHook PRIVATE 
         ${PROJECT_ROOT_DIR}/src/utils/MessageBroker.mm
     )
     message(STATUS "Build mode: qmlrebuild (resource hooking)")
 endif()
 
 if(BUILD_MODE_DEV)
-    target_compile_definitions(reMarkable PRIVATE BUILD_MODE_DEV=1)
+    target_compile_definitions(RMHook PRIVATE BUILD_MODE_DEV=1)
     message(STATUS "Build mode: dev (reverse engineering)")
 endif()
 
-target_link_libraries(reMarkable PRIVATE 
+target_link_libraries(RMHook PRIVATE 
     ${LIBS}
     ${QT_LIB_TARGETS}
 )

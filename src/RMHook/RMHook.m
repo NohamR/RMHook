@@ -1,9 +1,11 @@
-#import "reMarkable.h"
+#import "RMHook.h"
 #import <Foundation/Foundation.h>
 #import "Constant.h"
 #import "MemoryUtils.h"
 #import "Logger.h"
 #import "ResourceUtils.h"
+#import "Config.h"
+#import "SSLConfig.h"
 #ifdef BUILD_MODE_DEV
 #import "DevHooks.h"
 #endif
@@ -29,112 +31,8 @@
 #include <QtCore/QString>
 #include <QtCore/Qt>
 #include <QtWebSockets/QWebSocket>
-#include <QtCore/QSettings>
-#include <QtCore/QVariant>
-#include <QtCore/QAnyStringView>
 
-
-static NSString *const kReMarkableConfigFileName = @"rmfakecloud.config";
-static NSString *const kReMarkableConfigHostKey = @"host";
-static NSString *const kReMarkableConfigPortKey = @"port";
-static NSString *const kReMarkableDefaultHost = @"example.com";
-static NSNumber *const kReMarkableDefaultPort = @(443);
-
-static NSString *gConfiguredHost = @"example.com";
-static NSNumber *gConfiguredPort = @(443);
 static pthread_mutex_t gResourceMutex = PTHREAD_MUTEX_INITIALIZER;
-
-static NSString *ReMarkablePreferencesDirectory(void);
-
-static NSString *ReMarkablePreferencesDirectory(void) {
-    NSArray<NSString *> *libraryPaths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
-    NSString *libraryDir = [libraryPaths firstObject];
-    if (![libraryDir length]) {
-        libraryDir = [NSHomeDirectory() stringByAppendingPathComponent:@"Library"];
-    }
-    return [libraryDir stringByAppendingPathComponent:@"Preferences"];
-}
-
-static NSString *ReMarkableConfigFilePath(void) {
-    return [ReMarkablePreferencesDirectory() stringByAppendingPathComponent:kReMarkableConfigFileName];
-}
-
-static BOOL ReMarkableWriteConfig(NSString *path, NSDictionary<NSString *, id> *config) {
-    NSError *error = nil;
-    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:config options:NSJSONWritingPrettyPrinted error:&error];
-    if (!jsonData || error) {
-        NSLogger(@"[reMarkable] Failed to serialize config: %@", error);
-        return NO;
-    }
-    if (![jsonData writeToFile:path atomically:YES]) {
-        NSLogger(@"[reMarkable] Failed to write config file at %@", path);
-        return NO;
-    }
-    return YES;
-}
-
-static void ReMarkableLoadOrCreateConfig(void) {
-    NSString *configPath = ReMarkableConfigFilePath();
-    NSString *directory = [configPath stringByDeletingLastPathComponent];
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    BOOL isDirectory = NO;
-    NSError *error = nil;
-
-    if (![fileManager fileExistsAtPath:directory isDirectory:&isDirectory] || !isDirectory) {
-        if (![fileManager createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:&error]) {
-            NSLogger(@"[reMarkable] Failed to create config directory %@: %@", directory, error);
-        }
-    }
-
-    NSDictionary<NSString *, id> *defaults = @{kReMarkableConfigHostKey : kReMarkableDefaultHost,
-                                               kReMarkableConfigPortKey : kReMarkableDefaultPort};
-
-    if ([fileManager fileExistsAtPath:configPath isDirectory:&isDirectory] && !isDirectory) {
-        NSData *data = [NSData dataWithContentsOfFile:configPath];
-        if ([data length] > 0) {
-            NSError *jsonError = nil;
-            id jsonObject = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
-            if (!jsonError && [jsonObject isKindOfClass:[NSDictionary class]]) {
-                NSDictionary *configDict = (NSDictionary *)jsonObject;
-                NSString *hostValue = configDict[kReMarkableConfigHostKey];
-                NSNumber *portValue = configDict[kReMarkableConfigPortKey];
-
-                NSString *resolvedHost = ([hostValue isKindOfClass:[NSString class]] && [hostValue length]) ? hostValue : kReMarkableDefaultHost;
-                NSInteger portCandidate = kReMarkableDefaultPort.integerValue;
-                if ([portValue respondsToSelector:@selector(integerValue)]) {
-                    NSInteger candidate = [portValue integerValue];
-                    if (candidate > 0 && candidate <= 65535) {
-                        portCandidate = candidate;
-                    } else {
-                        NSLogger(@"[reMarkable] Ignoring invalid port value %@, falling back to default.", portValue);
-                    }
-                }
-
-                gConfiguredHost = [resolvedHost copy];
-                gConfiguredPort = @(portCandidate);
-                NSLogger(@"[reMarkable] Loaded config from %@ with host %@ and port %@", configPath, gConfiguredHost, gConfiguredPort);
-                return;
-            } else {
-                NSLogger(@"[reMarkable] Failed to parse config file %@: %@", configPath, jsonError);
-            }
-        } else {
-            NSLogger(@"[reMarkable] Config file %@ was empty, rewriting with defaults.", configPath);
-        }
-    }
-
-    if (ReMarkableWriteConfig(configPath, defaults)) {
-        NSLogger(@"[reMarkable] Created default config at %@", configPath);
-    }
-    gConfiguredHost = [kReMarkableDefaultHost copy];
-    gConfiguredPort = kReMarkableDefaultPort;
-}
-
-static inline QString QStringFromNSStringSafe(NSString *string) {
-    if (!string) {
-        return QString();
-    }
-    return QString::fromUtf8([string UTF8String]);
-}
 
 @interface MenuActionController : NSObject
 @property (strong, nonatomic) NSURL *targetURL;
@@ -207,24 +105,22 @@ static inline QString QStringFromNSStringSafe(NSString *string) {
 
 @end
 
-@interface reMarkableDylib : NSObject
+@interface RMHookDylib : NSObject
 
 - (BOOL)hook;
 
 @end
 
-@implementation reMarkable
+@implementation RMHook
 
 + (void)load {
-    NSLogger(@"reMarkable dylib loaded successfully");
+    NSLogger(@"RMHook dylib loaded successfully");
     
-    // Initialize the hook
-    reMarkableDylib *dylib = [[reMarkableDylib alloc] init];
+    RMHookDylib *dylib = [[RMHookDylib alloc] init];
     [dylib hook];
     
 #ifdef BUILD_MODE_RMFAKECLOUD
-    // Add custom Help menu entry to open config file
-    NSString *configPath = ReMarkableConfigFilePath();
+    NSString *configPath = ConfigFilePath();
     NSString *fileURL = [NSString stringWithFormat:@"file://%@", configPath];
     [MenuActionController addCustomHelpMenuEntry:@"Open rmfakecloud config" 
                                          withURL:fileURL 
@@ -234,7 +130,7 @@ static inline QString QStringFromNSStringSafe(NSString *string) {
 
 @end
 
-@implementation reMarkableDylib
+@implementation RMHookDylib
 
 #ifdef BUILD_MODE_RMFAKECLOUD
 static QNetworkReply *(*original_qNetworkAccessManager_createRequest)(
@@ -267,8 +163,6 @@ static int (*original_qRegisterResourceData)(
     const unsigned char *) = NULL;
 #endif
 
-
-
 #ifdef BUILD_MODE_RMFAKECLOUD
 static inline bool shouldPatchURL(const QString &host) {
     if (host.isEmpty()) {
@@ -294,114 +188,63 @@ static inline bool shouldPatchURL(const QString &host) {
 }
 #endif
 
+static inline QString QStringFromNSStringSafe(NSString *string) {
+    if (!string) {
+        return QString();
+    }
+    return QString::fromUtf8([string UTF8String]);
+}
+
 - (BOOL)hook {
-    NSLogger(@"[reMarkable] Starting hooks...");
+    NSLogger(@"[RMHook] Starting hooks...");
 
 #ifdef BUILD_MODE_RMFAKECLOUD
-    NSLogger(@"[reMarkable] Build mode: rmfakecloud");
-    ReMarkableLoadOrCreateConfig();
-    NSLogger(@"[reMarkable] Using override host %@ and port %@", gConfiguredHost, gConfiguredPort);
+    NSLogger(@"[RMHook] Build mode: rmfakecloud");
+    ConfigLoadOrCreate();
+    SSLConfigLoad();
+    NSLogger(@"[RMHook] Using override host %@ and port %@", gConfiguredHostObjC, gConfiguredPortObjC);
 
     [MemoryUtils hookSymbol:@"QtNetwork"
                         symbolName:@"__ZN21QNetworkAccessManager13createRequestENS_9OperationERK15QNetworkRequestP9QIODevice"
                       hookFunction:(void *)hooked_qNetworkAccessManager_createRequest
                   originalFunction:(void **)&original_qNetworkAccessManager_createRequest
-                         logPrefix:@"[reMarkable]"];
+                         logPrefix:@"[RMHook]"];
 
     [MemoryUtils hookSymbol:@"QtWebSockets"
                         symbolName:@"__ZN10QWebSocket4openERK15QNetworkRequest"
                       hookFunction:(void *)hooked_qWebSocket_open
                   originalFunction:(void **)&original_qWebSocket_open
-                         logPrefix:@"[reMarkable]"];
+                         logPrefix:@"[RMHook]"];
 
     [MemoryUtils hookSymbol:@"libpaho-mqtt3as.1.dylib"
                         symbolName:@"_MQTTAsync_createWithOptions"
                       hookFunction:(void *)hooked_MQTTAsync_createWithOptions
                   originalFunction:(void **)&original_MQTTAsync_createWithOptions
-                         logPrefix:@"[reMarkable]"];
+                         logPrefix:@"[RMHook]"];
 #endif
 
 #ifdef BUILD_MODE_QMLREBUILD
-    NSLogger(@"[reMarkable] Build mode: qmlrebuild");
+    NSLogger(@"[RMHook] Build mode: qmlrebuild");
     
-    // Register MessageBroker QML type for dylib <-> QML communication
     messagebroker::registerQmlType();
     
-    // Register native callback to receive signals from QML
     messagebroker::setNativeCallback([](const char *signal, const char *value) {
-        NSLogger(@"[reMarkable] Native callback received signal '%s' with value '%s'", signal, value);
+        NSLogger(@"[RMHook] Native callback received signal '%s' with value '%s'", signal, value);
     });
     
     [MemoryUtils hookSymbol:@"QtCore"
                         symbolName:@"__Z21qRegisterResourceDataiPKhS0_S0_"
                       hookFunction:(void *)hooked_qRegisterResourceData
                   originalFunction:(void **)&original_qRegisterResourceData
-                         logPrefix:@"[reMarkable]"];
+                         logPrefix:@"[RMHook]"];
 
-    // Send a delayed broadcast to QML (after UI has loaded)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         messagebroker::broadcast("signalName", "Hello from dylib!");
     });
 #endif
 
 #ifdef BUILD_MODE_DEV
-    NSLogger(@"[reMarkable] Build mode: dev/reverse engineering");
-    // [MemoryUtils hookSymbol:@"QtCore"
-    //                 symbolName:@"__ZN9QIODevice5writeEPKcx"
-    //               hookFunction:(void *)hooked_qIODevice_write
-    //           originalFunction:(void **)&original_qIODevice_write
-    //                  logPrefix:@"[reMarkable]"];
-
-    // // Hook function at address 0x10015A130
-    // [MemoryUtils hookAddress:@"reMarkable"
-    //            staticAddress:0x10015A130
-    //             hookFunction:(void *)hooked_function_at_0x10015A130
-    //         originalFunction:(void **)&original_function_at_0x10015A130
-    //                logPrefix:@"[reMarkable]"];
-
-    // // Hook function at address 0x10015BC90
-    // [MemoryUtils hookAddress:@"reMarkable"
-    //            staticAddress:0x10015BC90
-    //             hookFunction:(void *)hooked_function_at_0x10015BC90
-    //         originalFunction:(void **)&original_function_at_0x10015BC90
-    //                logPrefix:@"[reMarkable]"];
-
-    // // Hook function at address 0x10016D520
-    // [MemoryUtils hookAddress:@"reMarkable"
-    //            staticAddress:0x10016D520
-    //             hookFunction:(void *)hooked_function_at_0x10016D520
-    //         originalFunction:(void **)&original_function_at_0x10016D520
-    //                logPrefix:@"[reMarkable]"];
-
-    // // Hook function at address 0x1001B6EE0
-    // [MemoryUtils hookAddress:@"reMarkable"
-    //            staticAddress:0x1001B6EE0
-    //             hookFunction:(void *)hooked_function_at_0x1001B6EE0
-    //         originalFunction:(void **)&original_function_at_0x1001B6EE0
-    //                logPrefix:@"[reMarkable]"];
-
-    // PlatformHelpers.exportFile implementation WIP
-
-    // // Hook function at address 0x100011790
-    // [MemoryUtils hookAddress:@"reMarkable"
-    //            staticAddress:0x100011790
-    //             hookFunction:(void *)hooked_function_at_0x100011790
-    //         originalFunction:(void **)&original_function_at_0x100011790
-    //                logPrefix:@"[reMarkable]"];
-
-    // // Hook function at address 0x100011CE0
-    // [MemoryUtils hookAddress:@"reMarkable"
-    //            staticAddress:0x100011CE0
-    //             hookFunction:(void *)hooked_function_at_0x100011CE0
-    //         originalFunction:(void **)&original_function_at_0x100011CE0
-    //                logPrefix:@"[reMarkable]"];
-
-    // [MemoryUtils hookSymbol:@"QtQml"
-    //                 symbolName:@"__ZN11QQmlPrivate11qmlregisterENS_16RegistrationTypeEPv"
-    //               hookFunction:(void *)hooked_qmlregister
-    //           originalFunction:(void **)&original_qmlregister
-    //                  logPrefix:@"[reMarkable]"];
-
+    NSLogger(@"[RMHook] Build mode: dev/reverse engineering");
 #endif
 
     return YES;
@@ -416,13 +259,14 @@ extern "C" QNetworkReply* hooked_qNetworkAccessManager_createRequest(
 ) {
     const QString host = req.url().host();
     if (shouldPatchURL(host)) {
-        // Clone request to keep original immutable
         QNetworkRequest newReq(req);
         QUrl newUrl = req.url();
-        const QString overrideHost = QStringFromNSStringSafe(gConfiguredHost);
+        const QString overrideHost = QStringFromNSStringSafe(gConfiguredHostObjC);
         newUrl.setHost(overrideHost);
-        newUrl.setPort([gConfiguredPort intValue]);
+        newUrl.setPort([gConfiguredPortObjC intValue]);
         newReq.setUrl(newUrl);
+
+        SSLConfigApplyToRequest(newReq);
 
         if (original_qNetworkAccessManager_createRequest) {
             return original_qNetworkAccessManager_createRequest(self, op, newReq, outgoingData);
@@ -447,12 +291,14 @@ extern "C" void hooked_qWebSocket_open(
     const QString host = req.url().host();
     if (shouldPatchURL(host)) {
         QUrl newUrl = req.url();
-        const QString overrideHost = QStringFromNSStringSafe(gConfiguredHost);
+        const QString overrideHost = QStringFromNSStringSafe(gConfiguredHostObjC);
         newUrl.setHost(overrideHost);
-        newUrl.setPort([gConfiguredPort intValue]);
+        newUrl.setPort([gConfiguredPortObjC intValue]);
 
         QNetworkRequest newReq(req);
         newReq.setUrl(newUrl);
+
+        SSLConfigApplyToRequest(newReq);
 
         original_qWebSocket_open(self, newReq);
         return;
@@ -461,8 +307,6 @@ extern "C" void hooked_qWebSocket_open(
     original_qWebSocket_open(self, req);
 }
 
-// Patch a paho URI: "ssl://host.remarkable.com:port" -> "ssl://proxy:port"
-// Returns patched string, or empty if no patch needed.
 static std::string PatchMqttUri(const char* uri)
 {
     if (!uri) return {};
@@ -475,7 +319,6 @@ static std::string PatchMqttUri(const char* uri)
 
     const std::string origHost = original.substr(hostStart, hostEnd - hostStart);
 
-    // Match any *.remarkable.com or *.remarkable.engineering host
     static const char* kSuffixes[] = {
         ".remarkable.com",
         ".remarkable.engineering",
@@ -496,17 +339,16 @@ static std::string PatchMqttUri(const char* uri)
     if (!shouldPatch) return {};
 
     std::string patched = original;
-    std::string proxyHost = [gConfiguredHost UTF8String];
+    std::string proxyHost = [gConfiguredHostObjC UTF8String];
     patched.replace(hostStart, hostEnd - hostStart, proxyHost);
 
-    // Fix port
     size_t colonPos = patched.find(':', hostStart + proxyHost.size());
     if (colonPos != std::string::npos)
     {
         size_t numEnd = patched.find_first_not_of("0123456789", colonPos + 1);
         if (numEnd == std::string::npos) numEnd = patched.size();
         patched.replace(colonPos + 1, numEnd - colonPos - 1,
-                        std::to_string([gConfiguredPort intValue]));
+                        std::to_string([gConfiguredPortObjC intValue]));
     }
     return patched;
 }
@@ -520,12 +362,12 @@ extern "C" int hooked_MQTTAsync_createWithOptions(
     MQTTAsync_createOptions *options)
 {
     if (!original_MQTTAsync_createWithOptions) {
-        return -1; // error code for MQTTAsync_create failure
+        return -1;
     }
 
     std::string patchedUri = PatchMqttUri(serverURI);
     if (!patchedUri.empty()) {
-        NSLogger(@"[reMarkable] Patching MQTT URI from %s to %s", serverURI, patchedUri.c_str());
+        NSLogger(@"[RMHook] Patching MQTT URI from %s to %s", serverURI, patchedUri.c_str());
         return original_MQTTAsync_createWithOptions(handle, patchedUri.c_str(), clientId, persistence_type, persistence_context, options);
     }
 
@@ -534,8 +376,6 @@ extern "C" int hooked_MQTTAsync_createWithOptions(
 #endif // BUILD_MODE_RMFAKECLOUD
 
 #ifdef BUILD_MODE_QMLREBUILD
-
-// See https://deepwiki.com/search/once-the-qrr-file-parsed-take_871f24a0-8636-4aee-bddf-7405b6e32584 for details on qmlrebuild replacement strategy
 
 extern "C" int hooked_qRegisterResourceData(
     int version,
@@ -561,23 +401,21 @@ extern "C" int hooked_qRegisterResourceData(
         .entriesAffected = 0,
     };
 
-    NSLogger(@"[reMarkable] Registering Qt resource version %d tree:%p name:%p data:%p",
+    NSLogger(@"[RMHook] Registering Qt resource version %d tree:%p name:%p data:%p",
              version, tree, name, data);
 
     statArchive(&resource, 0);
     
-    // Make a writable copy of the tree (we need to modify offsets)
     resource.tree = (uint8_t *)malloc(resource.treeSize);
     if (!resource.tree) {
-        NSLogger(@"[reMarkable] Failed to allocate tree buffer");
+        NSLogger(@"[RMHook] Failed to allocate tree buffer");
         pthread_mutex_unlock(&gResourceMutex);
         return original_qRegisterResourceData(version, tree, name, data);
     }
     memcpy(resource.tree, tree, resource.treeSize);
 
-    // Process nodes and mark replacements
     processNode(&resource, 0, "");
-    NSLogger(@"[reMarkable] Processing done! Entries affected: %d, dataSize: %zu, originalDataSize: %zu", 
+    NSLogger(@"[RMHook] Processing done! Entries affected: %d, dataSize: %zu, originalDataSize: %zu", 
              resource.entriesAffected, resource.dataSize, resource.originalDataSize);
 
     const unsigned char *finalTree = tree;
@@ -585,30 +423,25 @@ extern "C" int hooked_qRegisterResourceData(
     uint8_t *newDataBuffer = NULL;
 
     if (resource.entriesAffected > 0) {
-        NSLogger(@"[reMarkable] Rebuilding data tables... (entries: %d)", resource.entriesAffected);
+        NSLogger(@"[RMHook] Rebuilding data tables... (entries: %d)", resource.entriesAffected);
         
-        // Allocate new data buffer (original size + space for replacements)
         newDataBuffer = (uint8_t *)malloc(resource.dataSize);
         if (!newDataBuffer) {
-            NSLogger(@"[reMarkable] Failed to allocate new data buffer (%zu bytes)", resource.dataSize);
+            NSLogger(@"[RMHook] Failed to allocate new data buffer (%zu bytes)", resource.dataSize);
             free(resource.tree);
             clearReplacementEntries();
             pthread_mutex_unlock(&gResourceMutex);
             return original_qRegisterResourceData(version, tree, name, data);
         }
         
-        // Copy original data
         memcpy(newDataBuffer, data, resource.originalDataSize);
         
-        // Copy replacement entries to their designated offsets
         struct ReplacementEntry *entry = getReplacementEntries();
         while (entry) {
-            // Write size prefix (4 bytes, big-endian)
             writeUint32(newDataBuffer, (int)entry->copyToOffset, (uint32_t)entry->size);
-            // Write data after size prefix
             memcpy(newDataBuffer + entry->copyToOffset + 4, entry->data, entry->size);
             
-            NSLogger(@"[reMarkable] Copied replacement for node %d at offset %zu (%zu bytes)", 
+            NSLogger(@"[RMHook] Copied replacement for node %d at offset %zu (%zu bytes)", 
                      entry->node, entry->copyToOffset, entry->size);
             
             entry = entry->next;
@@ -617,19 +450,16 @@ extern "C" int hooked_qRegisterResourceData(
         finalTree = resource.tree;
         finalData = newDataBuffer;
         
-        NSLogger(@"[reMarkable] Data buffer rebuilt: original %zu bytes -> new %zu bytes", 
+        NSLogger(@"[RMHook] Data buffer rebuilt: original %zu bytes -> new %zu bytes", 
                  resource.originalDataSize, resource.dataSize);
     }
 
     int status = original_qRegisterResourceData(version, finalTree, name, finalData);
     
-    // Cleanup
     clearReplacementEntries();
     if (resource.tree && resource.entriesAffected == 0) {
         free(resource.tree);
     }
-    // Note: We intentionally don't free newDataBuffer or resource.tree when entriesAffected > 0
-    // because Qt will use these buffers for the lifetime of the application
     
     pthread_mutex_unlock(&gResourceMutex);
     return status;

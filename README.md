@@ -17,6 +17,7 @@ RMHook hooks into the reMarkable Desktop app's network layer to redirect API cal
 - Network request interception and redirection
 - WebSocket connection patching
 - MQTT URI modification for screen sharing features
+- mTLS support for external access via Cloudflare Tunnel
 
 ## Compatibility
 
@@ -109,12 +110,44 @@ Example configuration:
 ## Configuration
 
 The config file (`~/Library/Preferences/rmfakecloud.config`) supports the following keys:
-| Key    | Type    | Default           | Description                    |
-|--------|---------|-------------------|--------------------------------|
-| `host` | String  | `example.com`     | Your rmfakecloud server host   |
-| `port` | Number  | `443`             | Your rmfakecloud server port   |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `host` | String | `example.com` | Your rmfakecloud server host |
+| `port` | Number | `443` | Your rmfakecloud server port |
+| `client_cert` | String | (none) | Path to client certificate file (PEM) for mTLS |
+| `client_key` | String | (none) | Path to client private key file (PEM) for mTLS |
+| `key_algorithm` | String | `rsa` | Key algorithm: `rsa`, `ec`, `dsa`, `dh`, or `opaque` |
+| `ca_cert` | String | (none) | Path to custom CA certificate file (PEM) |
+| `disable_ssl_verification` | Boolean | `false` | Disable SSL peer verification (not recommended) |
 
 If the config file doesn't exist, it will be created automatically with default values on first launch.
+
+### External Access (Cloudflare Tunnel with Client Certificate)
+
+If your rmfakecloud instance is exposed via Cloudflare Tunnel with client certificate authentication, configure the additional TLS settings in `~/Library/Preferences/rmfakecloud.config`:
+
+```json
+{
+  "host": "rmfakecloud.example.com",
+  "port": 443,
+  "client_cert": "/path/to/client.crt",
+  "client_key": "/path/to/client.key"
+}
+```
+
+If your server uses a self-signed certificate or a certificate signed by a private CA:
+
+```json
+{
+  "host": "rmfakecloud.example.com",
+  "port": 443,
+  "client_cert": "/path/to/client.crt",
+  "client_key": "/path/to/client.key",
+  "ca_cert": "/path/to/ca.crt"
+}
+```
+
+See the [rmfakecloud external access guide](https://ddvk.github.io/rmfakecloud/install/external-access/) for generating the client certificate.
 
 ## Building
 
@@ -122,6 +155,14 @@ If the config file doesn't exist, it will be created automatically with default 
 ```bash
 git clone http://github.com/NohamR/RMHook
 cd RMHook
+```
+
+Create a Python environment and install `aqtinstall`:
+```bash
+python3 -m venv aqt_venv
+source aqt_venv/bin/activate
+pip install aqtinstall
+aqt install-qt mac desktop 6.10.3 -m qtwebsockets --outputdir ~/Qt
 ```
 
 2. **Compile the dylib:**
