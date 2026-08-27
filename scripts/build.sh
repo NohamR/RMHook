@@ -29,7 +29,7 @@ case "$BUILD_MODE" in
         DYLIB_NAME="all.dylib"
         ;;
     *)
-        DYLIB_NAME="reMarkable.dylib"
+        DYLIB_NAME="RMHook.dylib"
         ;;
 esac
 
@@ -55,7 +55,7 @@ case "$BUILD_MODE" in
         ;;
 esac
 
-echo "🔨 Compiling reMarkable.dylib (mode: $BUILD_MODE)..."
+echo "🔨 Compiling RMHook.dylib (mode: $BUILD_MODE)..."
 echo "📦 Qt path: $QT_PATH"
 
 # Create build directories if necessary
@@ -70,12 +70,12 @@ else
     cmake $CMAKE_OPTIONS ..
 fi
 
-make reMarkable
+make RMHook
 
 if [ $? -eq 0 ]; then
     # Rename the produced dylib so each build mode has a distinct file name
     DYLIB_DIR="$PROJECT_DIR/build/dylibs"
-    DEFAULT_DYLIB="$DYLIB_DIR/reMarkable.dylib"
+    DEFAULT_DYLIB="$DYLIB_DIR/RMHook.dylib"
     TARGET_DYLIB="$DYLIB_DIR/$DYLIB_NAME"
 
     if [ -f "$DEFAULT_DYLIB" ]; then

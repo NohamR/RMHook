@@ -2,3 +2,5 @@ build/
 .DS_Store
 /.vscode
 /research
+/aqt_venv
+docs/rmfakecloud_hooking.md
