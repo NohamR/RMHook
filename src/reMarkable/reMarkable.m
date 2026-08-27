@@ -29,6 +29,11 @@
 #include <QtCore/QString>
 #include <QtCore/Qt>
 #include <QtWebSockets/QWebSocket>
+#include <QtNetwork/QSslConfiguration>
+#include <QtNetwork/QSslCertificate>
+#include <QtNetwork/QSslKey>
+#include <QtNetwork/QSslSocket>
+#include <QtCore/QFile>
 #include <QtCore/QSettings>
 #include <QtCore/QVariant>
 #include <QtCore/QAnyStringView>
@@ -37,14 +42,31 @@
 static NSString *const kReMarkableConfigFileName = @"rmfakecloud.config";
 static NSString *const kReMarkableConfigHostKey = @"host";
 static NSString *const kReMarkableConfigPortKey = @"port";
+static NSString *const kReMarkableConfigClientCertKey = @"client_cert";
+static NSString *const kReMarkableConfigClientKeyKey = @"client_key";
+static NSString *const kReMarkableConfigCACertKey = @"ca_cert";
+static NSString *const kReMarkableConfigDisableSSLVerifyKey = @"disable_ssl_verification";
 static NSString *const kReMarkableDefaultHost = @"example.com";
 static NSNumber *const kReMarkableDefaultPort = @(443);
 
 static NSString *gConfiguredHost = @"example.com";
 static NSNumber *gConfiguredPort = @(443);
+static QString gConfiguredClientCertPath;
+static QString gConfiguredClientKeyPath;
+static QString gConfiguredCACertPath;
+static bool gDisableSSLVerification = false;
+
+// Loaded SSL objects (populated once at startup)
+static QSslCertificate gClientCert;
+static QSslKey gClientKey;
+static QSslCertificate gCACert;
+static bool gSSLInitialized = false;
+
 static pthread_mutex_t gResourceMutex = PTHREAD_MUTEX_INITIALIZER;
 
 static NSString *ReMarkablePreferencesDirectory(void);
+
+static void ReMarkableLoadSSLConfig(void);
 
 static NSString *ReMarkablePreferencesDirectory(void) {
     NSArray<NSString *> *libraryPaths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
@@ -59,6 +81,59 @@ static NSString *ReMarkableConfigFilePath(void) {
     return [ReMarkablePreferencesDirectory() stringByAppendingPathComponent:kReMarkableConfigFileName];
 }
 
+static void ReMarkableLoadSSLConfig(void) {
+    if (gSSLInitialized) return;
+
+    if (!gConfiguredClientCertPath.isEmpty() && !gConfiguredClientKeyPath.isEmpty()) {
+        QString certPath = gConfiguredClientCertPath;
+        QString keyPath = gConfiguredClientKeyPath;
+
+        QFile certFile(QString::fromUtf8(certPath.toUtf8()));
+        if (certFile.open(QIODevice::ReadOnly)) {
+            gClientCert = QSslCertificate(certFile.readAll(), QSsl::Pem);
+            certFile.close();
+            if (gClientCert.isNull()) {
+                NSLogger(@"[reMarkable] Failed to parse client certificate from %s", certPath.toUtf8().constData());
+            } else {
+                NSLogger(@"[reMarkable] Loaded client certificate from %s", certPath.toUtf8().constData());
+            }
+        } else {
+            NSLogger(@"[reMarkable] Failed to open client certificate file %s", certPath.toUtf8().constData());
+        }
+
+        QFile keyFile(QString::fromUtf8(keyPath.toUtf8()));
+        if (keyFile.open(QIODevice::ReadOnly)) {
+            gClientKey = QSslKey(keyFile.readAll(), QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
+            keyFile.close();
+            if (gClientKey.isNull()) {
+                NSLogger(@"[reMarkable] Failed to parse client key from %s", keyPath.toUtf8().constData());
+            } else {
+                NSLogger(@"[reMarkable] Loaded client key from %s", keyPath.toUtf8().constData());
+            }
+        } else {
+            NSLogger(@"[reMarkable] Failed to open client key file %s", keyPath.toUtf8().constData());
+        }
+    }
+
+    if (!gConfiguredCACertPath.isEmpty()) {
+        QString caPath = gConfiguredCACertPath;
+        QFile caFile(QString::fromUtf8(caPath.toUtf8()));
+        if (caFile.open(QIODevice::ReadOnly)) {
+            gCACert = QSslCertificate(caFile.readAll(), QSsl::Pem);
+            caFile.close();
+            if (gCACert.isNull()) {
+                NSLogger(@"[reMarkable] Failed to parse CA certificate from %s", caPath.toUtf8().constData());
+            } else {
+                NSLogger(@"[reMarkable] Loaded CA certificate from %s", caPath.toUtf8().constData());
+            }
+        } else {
+            NSLogger(@"[reMarkable] Failed to open CA certificate file %s", caPath.toUtf8().constData());
+        }
+    }
+
+    gSSLInitialized = true;
+}
+
 static BOOL ReMarkableWriteConfig(NSString *path, NSDictionary<NSString *, id> *config) {
     NSError *error = nil;
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:config options:NSJSONWritingPrettyPrinted error:&error];
@@ -71,6 +146,13 @@ static BOOL ReMarkableWriteConfig(NSString *path, NSDictionary<NSString *, id> *
         return NO;
     }
     return YES;
+}
+
+static inline QString QStringFromNSStringSafe(NSString *string) {
+    if (!string) {
+        return QString();
+    }
+    return QString::fromUtf8([string UTF8String]);
 }
 
 static void ReMarkableLoadOrCreateConfig(void) {
@@ -112,6 +194,26 @@ static void ReMarkableLoadOrCreateConfig(void) {
 
                 gConfiguredHost = [resolvedHost copy];
                 gConfiguredPort = @(portCandidate);
+
+                // TLS config keys (optional)
+                NSString *certPathValue = configDict[kReMarkableConfigClientCertKey];
+                NSString *keyPathValue = configDict[kReMarkableConfigClientKeyKey];
+                NSString *caPathValue = configDict[kReMarkableConfigCACertKey];
+                NSNumber *disableSSLValue = configDict[kReMarkableConfigDisableSSLVerifyKey];
+
+                if ([certPathValue isKindOfClass:[NSString class]] && [certPathValue length]) {
+                    gConfiguredClientCertPath = QStringFromNSStringSafe(certPathValue);
+                }
+                if ([keyPathValue isKindOfClass:[NSString class]] && [keyPathValue length]) {
+                    gConfiguredClientKeyPath = QStringFromNSStringSafe(keyPathValue);
+                }
+                if ([caPathValue isKindOfClass:[NSString class]] && [caPathValue length]) {
+                    gConfiguredCACertPath = QStringFromNSStringSafe(caPathValue);
+                }
+                if ([disableSSLValue respondsToSelector:@selector(boolValue)]) {
+                    gDisableSSLVerification = [disableSSLValue boolValue];
+                }
+
                 NSLogger(@"[reMarkable] Loaded config from %@ with host %@ and port %@", configPath, gConfiguredHost, gConfiguredPort);
                 return;
             } else {
@@ -127,13 +229,6 @@ static void ReMarkableLoadOrCreateConfig(void) {
     }
     gConfiguredHost = [kReMarkableDefaultHost copy];
     gConfiguredPort = kReMarkableDefaultPort;
-}
-
-static inline QString QStringFromNSStringSafe(NSString *string) {
-    if (!string) {
-        return QString();
-    }
-    return QString::fromUtf8([string UTF8String]);
 }
 
 @interface MenuActionController : NSObject
@@ -300,6 +395,7 @@ static inline bool shouldPatchURL(const QString &host) {
 #ifdef BUILD_MODE_RMFAKECLOUD
     NSLogger(@"[reMarkable] Build mode: rmfakecloud");
     ReMarkableLoadOrCreateConfig();
+    ReMarkableLoadSSLConfig();
     NSLogger(@"[reMarkable] Using override host %@ and port %@", gConfiguredHost, gConfiguredPort);
 
     [MemoryUtils hookSymbol:@"QtNetwork"
@@ -424,6 +520,30 @@ extern "C" QNetworkReply* hooked_qNetworkAccessManager_createRequest(
         newUrl.setPort([gConfiguredPort intValue]);
         newReq.setUrl(newUrl);
 
+        // Apply SSL configuration for mTLS / custom CA
+        if (gSSLInitialized) {
+            QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
+
+            if (!gClientCert.isNull() && !gClientKey.isNull()) {
+                QList<QSslCertificate> localCerts = sslConfig.localCertificateChain();
+                localCerts.append(gClientCert);
+                sslConfig.setLocalCertificateChain(localCerts);
+                sslConfig.setPrivateKey(gClientKey);
+            }
+
+            if (!gCACert.isNull()) {
+                QList<QSslCertificate> caCerts = sslConfig.caCertificates();
+                caCerts.append(gCACert);
+                sslConfig.setCaCertificates(caCerts);
+            }
+
+            if (gDisableSSLVerification) {
+                sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+            }
+
+            newReq.setSslConfiguration(sslConfig);
+        }
+
         if (original_qNetworkAccessManager_createRequest) {
             return original_qNetworkAccessManager_createRequest(self, op, newReq, outgoingData);
         }
@@ -453,6 +573,30 @@ extern "C" void hooked_qWebSocket_open(
 
         QNetworkRequest newReq(req);
         newReq.setUrl(newUrl);
+
+        // Apply SSL configuration for mTLS / custom CA
+        if (gSSLInitialized) {
+            QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
+
+            if (!gClientCert.isNull() && !gClientKey.isNull()) {
+                QList<QSslCertificate> localCerts = sslConfig.localCertificateChain();
+                localCerts.append(gClientCert);
+                sslConfig.setLocalCertificateChain(localCerts);
+                sslConfig.setPrivateKey(gClientKey);
+            }
+
+            if (!gCACert.isNull()) {
+                QList<QSslCertificate> caCerts = sslConfig.caCertificates();
+                caCerts.append(gCACert);
+                sslConfig.setCaCertificates(caCerts);
+            }
+
+            if (gDisableSSLVerification) {
+                sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+            }
+
+            newReq.setSslConfiguration(sslConfig);
+        }
 
         original_qWebSocket_open(self, newReq);
         return;
