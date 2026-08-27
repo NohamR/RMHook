@@ -35,7 +35,7 @@ void SSLConfigLoad(void) {
 
         QFile keyFile(QString::fromUtf8(keyPath.toUtf8()));
         if (keyFile.open(QIODevice::ReadOnly)) {
-            gClientKey = QSslKey(keyFile.readAll(), QSsl::Rsa, QSsl::Pem, QSsl::PrivateKey);
+            gClientKey = QSslKey(keyFile.readAll(), gConfiguredKeyAlgorithm, QSsl::Pem, QSsl::PrivateKey);
             keyFile.close();
             if (gClientKey.isNull()) {
                 NSLogger(@"[RMHook] Failed to parse client key from %s", keyPath.toUtf8().constData());

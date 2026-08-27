@@ -116,6 +116,7 @@ The config file (`~/Library/Preferences/rmfakecloud.config`) supports the follow
 | `port` | Number | `443` | Your rmfakecloud server port |
 | `client_cert` | String | (none) | Path to client certificate file (PEM) for mTLS |
 | `client_key` | String | (none) | Path to client private key file (PEM) for mTLS |
+| `key_algorithm` | String | `rsa` | Key algorithm: `rsa`, `ec`, `dsa`, `dh`, or `opaque` |
 | `ca_cert` | String | (none) | Path to custom CA certificate file (PEM) |
 | `disable_ssl_verification` | Boolean | `false` | Disable SSL peer verification (not recommended) |
 

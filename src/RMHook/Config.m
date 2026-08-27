@@ -8,6 +8,7 @@ static NSString *const kConfigPortKey = @"port";
 static NSString *const kConfigClientCertKey = @"client_cert";
 static NSString *const kConfigClientKeyKey = @"client_key";
 static NSString *const kConfigCACertKey = @"ca_cert";
+static NSString *const kConfigKeyAlgorithmKey = @"key_algorithm";
 static NSString *const kConfigDisableSSLVerifyKey = @"disable_ssl_verification";
 static NSString *const kDefaultHost = @"example.com";
 static NSNumber *const kDefaultPort = @(443);
@@ -19,6 +20,7 @@ NSNumber *gConfiguredPort = @(443);
 QString gConfiguredClientCertPath;
 QString gConfiguredClientKeyPath;
 QString gConfiguredCACertPath;
+QSsl::KeyAlgorithm gConfiguredKeyAlgorithm = QSsl::Rsa;
 bool gDisableSSLVerification = false;
 
 static NSString *PreferencesDirectory(void) {
@@ -110,6 +112,21 @@ void ConfigLoadOrCreate(void) {
                 }
                 if ([caPathValue isKindOfClass:[NSString class]] && [caPathValue length]) {
                     gConfiguredCACertPath = QStringFromNSStringSafe(caPathValue);
+                }
+                NSString *keyAlgoValue = configDict[kConfigKeyAlgorithmKey];
+                if ([keyAlgoValue isKindOfClass:[NSString class]] && [keyAlgoValue length]) {
+                    NSString *lower = [keyAlgoValue lowercaseString];
+                    if ([lower isEqualToString:@"ec"]) {
+                        gConfiguredKeyAlgorithm = QSsl::Ec;
+                    } else if ([lower isEqualToString:@"dsa"]) {
+                        gConfiguredKeyAlgorithm = QSsl::Dsa;
+                    } else if ([lower isEqualToString:@"dh"]) {
+                        gConfiguredKeyAlgorithm = QSsl::Dh;
+                    } else if ([lower isEqualToString:@"opaque"]) {
+                        gConfiguredKeyAlgorithm = QSsl::Opaque;
+                    } else {
+                        gConfiguredKeyAlgorithm = QSsl::Rsa;
+                    }
                 }
                 if ([disableSSLValue respondsToSelector:@selector(boolValue)]) {
                     gDisableSSLVerification = [disableSSLValue boolValue];
