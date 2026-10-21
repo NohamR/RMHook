@@ -21,7 +21,7 @@ RMHook hooks into the reMarkable Desktop app's network layer to redirect API cal
 ## Compatibility
 
 **Tested and working on:**
-- reMarkable Desktop v3.28.1 (released 2026-08-24)
+- reMarkable Desktop v3.29.0 (released 2026-10-15)
 
 <p align="center">
   <img src="docs/latest.png" width="45%" />
