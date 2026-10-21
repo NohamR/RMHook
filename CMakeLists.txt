@@ -49,7 +49,7 @@ set(LIBS
 
 # Locate Qt libraries
 set(QT_LIB_TARGETS "")
-set(_qt_candidate_roots "$ENV{HOME}/Qt/6.10.0")
+set(_qt_candidate_roots "$ENV{HOME}/Qt/6.10.3/macos")
 
 foreach(_qt_root ${_qt_candidate_roots})
     if(_qt_root AND EXISTS "${_qt_root}")
@@ -132,7 +132,7 @@ endif()
 # MQTT URI patching hook (legacy, disabled by default)
 option(RMHOOK_ENABLE_MQTT "Enable MQTT URI patching hook (legacy, requires rmfakecloud mode)" OFF)
 if(RMHOOK_ENABLE_MQTT)
-    target_compile_definitions(RMHook PRIVATE RMHOOK_ENABLE_MQTT=1)
+    target_compile_definitions(reMarkable PRIVATE RMHOOK_ENABLE_MQTT=1)
     message(STATUS "MQTT hook: enabled (legacy)")
 endif()
 
