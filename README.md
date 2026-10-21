@@ -154,6 +154,14 @@ Examples:
 ./scripts/build.sh all          # Build with all modes enabled
 ```
 
+### Optional: Legacy MQTT hook
+
+The MQTT URI patching hook (`MQTTAsync_createWithOptions`) is kept for legacy use but is **disabled by default**. To enable it, pass the CMake option when building:
+
+```bash
+cmake -DRMHOOK_ENABLE_MQTT=ON ..
+```
+
 ## Debugging
 
 You can stream the macOS console logs to see output from the hooks:

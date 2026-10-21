@@ -129,6 +129,13 @@ if(BUILD_MODE_DEV)
     message(STATUS "Build mode: dev (reverse engineering)")
 endif()
 
+# MQTT URI patching hook (legacy, disabled by default)
+option(RMHOOK_ENABLE_MQTT "Enable MQTT URI patching hook (legacy, requires rmfakecloud mode)" OFF)
+if(RMHOOK_ENABLE_MQTT)
+    target_compile_definitions(RMHook PRIVATE RMHOOK_ENABLE_MQTT=1)
+    message(STATUS "MQTT hook: enabled (legacy)")
+endif()
+
 target_link_libraries(reMarkable PRIVATE 
     ${LIBS}
     ${QT_LIB_TARGETS}

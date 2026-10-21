@@ -247,6 +247,7 @@ static void (*original_qWebSocket_open)(
     QWebSocket *self,
     const QNetworkRequest &request) = NULL;
 
+#ifdef RMHOOK_ENABLE_MQTT
 typedef void* MQTTAsync;
 typedef void* MQTTAsync_createOptions;
 
@@ -257,6 +258,7 @@ static int (*original_MQTTAsync_createWithOptions)(
     int persistence_type,
     void *persistence_context,
     MQTTAsync_createOptions *options) = NULL;
+#endif // RMHOOK_ENABLE_MQTT
 #endif
 
 #ifdef BUILD_MODE_QMLREBUILD
@@ -314,11 +316,13 @@ static inline bool shouldPatchURL(const QString &host) {
                   originalFunction:(void **)&original_qWebSocket_open
                          logPrefix:@"[reMarkable]"];
 
+#ifdef RMHOOK_ENABLE_MQTT
     [MemoryUtils hookSymbol:@"libpaho-mqtt3as.1.dylib"
                         symbolName:@"_MQTTAsync_createWithOptions"
                       hookFunction:(void *)hooked_MQTTAsync_createWithOptions
                   originalFunction:(void **)&original_MQTTAsync_createWithOptions
                          logPrefix:@"[reMarkable]"];
+#endif // RMHOOK_ENABLE_MQTT
 #endif
 
 #ifdef BUILD_MODE_QMLREBUILD
@@ -463,6 +467,7 @@ extern "C" void hooked_qWebSocket_open(
 
 // Patch a paho URI: "ssl://host.remarkable.com:port" -> "ssl://proxy:port"
 // Returns patched string, or empty if no patch needed.
+#ifdef RMHOOK_ENABLE_MQTT
 static std::string PatchMqttUri(const char* uri)
 {
     if (!uri) return {};
@@ -510,7 +515,9 @@ static std::string PatchMqttUri(const char* uri)
     }
     return patched;
 }
+#endif // RMHOOK_ENABLE_MQTT
 
+#ifdef RMHOOK_ENABLE_MQTT
 extern "C" int hooked_MQTTAsync_createWithOptions(
     MQTTAsync *handle,
     const char *serverURI,
@@ -531,6 +538,7 @@ extern "C" int hooked_MQTTAsync_createWithOptions(
 
     return original_MQTTAsync_createWithOptions(handle, serverURI, clientId, persistence_type, persistence_context, options);
 }
+#endif // RMHOOK_ENABLE_MQTT
 #endif // BUILD_MODE_RMFAKECLOUD
 
 #ifdef BUILD_MODE_QMLREBUILD
